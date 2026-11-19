@@ -28,7 +28,7 @@ class LoginView(APIView):
     def post(self, request):
         data = LoginSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        user, tokens = services.login(**data.validated_data)
+        user, tokens = services.login(**data.validated_data, request=request)
         return Response({**tokens, "user": UserSerializer(user).data})
 
 
@@ -48,7 +48,9 @@ class LogoutView(APIView):
     def post(self, request):
         data = LogoutSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        services.logout(request.session_id, data.validated_data.get("refresh"))
+        services.logout(
+            request.session_id, data.validated_data.get("refresh"), user=request.user, request=request
+        )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -70,6 +72,7 @@ class ChangePasswordView(APIView):
             data.validated_data["current_password"],
             data.validated_data["new_password"],
             session_id=request.session_id,
+            request=request,
         )
         return Response({"detail": "Contrasena actualizada."})
 
@@ -88,7 +91,9 @@ class UserListCreateView(APIView):
     def post(self, request):
         data = UserCreateSerializer(data=request.data)
         data.is_valid(raise_exception=True)
-        user, temporary = services.create_user(**data.validated_data)
+        user, temporary = services.create_user(
+            **data.validated_data, acting_user=request.user, request=request
+        )
         return Response(
             {**UserSerializer(user).data, "temporary_password": temporary},
             status=status.HTTP_201_CREATED,
@@ -108,7 +113,11 @@ class UserDetailView(APIView):
         fields = dict(data.validated_data)
         if "whatsapp_number" in fields:
             fields["whatsapp_number"] = fields["whatsapp_number"] or None
-        return Response(UserSerializer(services.update_user(user, **fields)).data)
+        return Response(
+            UserSerializer(
+                services.update_user(user, acting_user=request.user, request=request, **fields)
+            ).data
+        )
 
 
 class UserDeactivateView(APIView):
@@ -116,7 +125,9 @@ class UserDeactivateView(APIView):
 
     def post(self, request, pk):
         user = get_object_or_404(User, pk=pk)
-        return Response(UserSerializer(services.deactivate_user(user, acting_user=request.user)).data)
+        return Response(
+            UserSerializer(services.deactivate_user(user, acting_user=request.user, request=request)).data
+        )
 
 
 class UserActivateView(APIView):
@@ -124,7 +135,9 @@ class UserActivateView(APIView):
 
     def post(self, request, pk):
         user = get_object_or_404(User, pk=pk)
-        return Response(UserSerializer(services.activate_user(user)).data)
+        return Response(
+            UserSerializer(services.activate_user(user, acting_user=request.user, request=request)).data
+        )
 
 
 class UserResetPasswordView(APIView):
@@ -132,5 +145,5 @@ class UserResetPasswordView(APIView):
 
     def post(self, request, pk):
         user = get_object_or_404(User, pk=pk)
-        temporary = services.reset_password(user)
+        temporary = services.reset_password(user, acting_user=request.user, request=request)
         return Response({"temporary_password": temporary})
