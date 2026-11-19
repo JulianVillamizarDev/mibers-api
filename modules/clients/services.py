@@ -98,12 +98,70 @@ def purge_expired_clients(*, now=None) -> int:
 
 
 # --- Contactos de WhatsApp (RF6, RNF13) --------------------------------------
+def _has_number(cliente: Cliente, numero: str, exclude_pk=None) -> bool:
+    # El numero esta cifrado con nonce aleatorio: se compara descifrando (pocos contactos por cliente).
+    return any(c.numero == numero for c in cliente.contactos.exclude(pk=exclude_pk))
 
 
+def add_contact(
+    cliente: Cliente, *, nombre, numero, autorizado, evidencia="", acting_user, request=None
+) -> ContactoWhatsApp:
+    if _has_number(cliente, numero):
+        raise DomainError("Ese numero ya esta registrado para el cliente.", "duplicate_contact")
+    contacto = ContactoWhatsApp.objects.create(
+        cliente=cliente,
+        nombre=nombre,
+        numero=numero,
+        autorizacion_at=timezone.now() if autorizado else None,
+        autorizacion_evidencia=evidencia if autorizado else "",
+    )
+    audit.record(
+        Action.CONTACT_CHANGED,
+        actor=acting_user,
+        entity=contacto,
+        metadata={"op": "created", "cliente": str(cliente.pk), "autorizado": autorizado},
+        request=request,
+    )
+    return contacto
 
 
+def update_contact(contacto: ContactoWhatsApp, *, acting_user, request=None, **fields) -> ContactoWhatsApp:
+    numero = fields.get("numero")
+    if numero and _has_number(contacto.cliente, numero, exclude_pk=contacto.pk):
+        raise DomainError("Ese numero ya esta registrado para el cliente.", "duplicate_contact")
+    autorizado = fields.pop("autorizado", None)
+    evidencia = fields.pop("evidencia", None)
+    for name, value in fields.items():
+        setattr(contacto, name, value)
+    if autorizado is True and contacto.autorizacion_at is None:
+        contacto.autorizacion_at = timezone.now()
+    elif autorizado is False:
+        contacto.autorizacion_at = None
+        contacto.autorizacion_evidencia = ""
+    if evidencia is not None and contacto.autorizado:
+        contacto.autorizacion_evidencia = evidencia
+    contacto.save()
+    audit.record(
+        Action.CONTACT_CHANGED,
+        actor=acting_user,
+        entity=contacto,
+        metadata={"op": "updated", "cliente": str(contacto.cliente_id), "autorizado": contacto.autorizado},
+        request=request,
+    )
+    return contacto
 
 
+def remove_contact(contacto: ContactoWhatsApp, *, acting_user, request=None) -> None:
+    contact_id, client_id = str(contacto.pk), str(contacto.cliente_id)
+    contacto.delete()
+    audit.record(
+        Action.CONTACT_CHANGED,
+        actor=acting_user,
+        entity_type="clients.contactowhatsapp",
+        entity_id=contact_id,
+        metadata={"op": "removed", "cliente": client_id},
+        request=request,
+    )
 
 
 # --- Cuentas sociales (RF7): solo Administrador -------------------------------

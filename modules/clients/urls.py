@@ -16,4 +16,10 @@ urlpatterns = [
         name="cliente-reactivar",
     ),
     path("clientes/<uuid:pk>/manual-marca", views.ManualMarcaView.as_view(), name="cliente-manual"),
+    path("clientes/<uuid:pk>/contactos", views.ContactoListCreateView.as_view(), name="cliente-contactos"),
+    path(
+        "clientes/<uuid:pk>/contactos/<uuid:contacto_id>",
+        views.ContactoDetailView.as_view(),
+        name="cliente-contacto",
+    ),
 ]

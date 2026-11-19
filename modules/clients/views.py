@@ -94,8 +94,41 @@ class ManualMarcaView(APIView):
 
 
 # --- Contactos de WhatsApp ----------------------------------------------------
+class ContactoListCreateView(APIView):
+    permission_classes = BASE_PERMISSIONS
+
+    def get(self, request, pk):
+        cliente = get_client(pk)
+        return Response(ContactoSerializer(cliente.contactos.all(), many=True).data)
+
+    def post(self, request, pk):
+        cliente = get_client(pk)
+        data = ContactoCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        contacto = services.add_contact(
+            cliente, acting_user=request.user, request=request, **data.validated_data
+        )
+        return Response(ContactoSerializer(contacto).data, status=status.HTTP_201_CREATED)
 
 
+class ContactoDetailView(APIView):
+    permission_classes = BASE_PERMISSIONS
+
+    def _get(self, pk, contacto_id):
+        return get_object_or_404(
+            ContactoWhatsApp.objects.select_related("cliente"), pk=contacto_id, cliente_id=pk
+        )
+
+    def patch(self, request, pk, contacto_id):
+        contacto = self._get(pk, contacto_id)
+        data = ContactoUpdateSerializer(data=request.data, partial=True)
+        data.is_valid(raise_exception=True)
+        services.update_contact(contacto, acting_user=request.user, request=request, **data.validated_data)
+        return Response(ContactoSerializer(contacto).data)
+
+    def delete(self, request, pk, contacto_id):
+        services.remove_contact(self._get(pk, contacto_id), acting_user=request.user, request=request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # --- Cuentas sociales ----------------------------------------------------------
