@@ -20,6 +20,9 @@ class LogoutSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=False, allow_blank=True)
 
 
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(trim_whitespace=False)
+    new_password = serializers.CharField(trim_whitespace=False)
 
 
 class UserSerializer(serializers.ModelSerializer):

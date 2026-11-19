@@ -61,6 +61,20 @@ class MeView(APIView):
         return Response(UserSerializer(request.user).data)
 
 
+class ChangePasswordView(APIView):
+    allow_password_change_pending = True
+
+    def post(self, request):
+        data = ChangePasswordSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        services.change_password(
+            request.user,
+            data.validated_data["current_password"],
+            data.validated_data["new_password"],
+            session_id=request.session_id,
+            request=request,
+        )
+        return Response({"detail": "Contrasena actualizada."})
 
 
 # --- Gestion de personal (solo Administrador) --------------------------------

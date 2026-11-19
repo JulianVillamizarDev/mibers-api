@@ -119,6 +119,16 @@ def revoke_all_sessions(user, *, except_session_id=None) -> None:
 
 
 # --- Contrasenas (RF2) ------------------------------------------------------
+def change_password(user, current_password: str, new_password: str, session_id=None) -> None:
+    if not user.check_password(current_password):
+        raise DomainError("La contrasena actual no es correcta.", "wrong_current_password")
+    if current_password == new_password:
+        raise DomainError("La nueva contrasena debe ser distinta de la actual.", "same_password")
+    validate_password(new_password, user)  # lanza ValidationError -> 400
+    user.set_password(new_password)
+    user.must_change_password = False
+    user.save(update_fields=["password", "must_change_password"])
+    revoke_all_sessions(user, except_session_id=session_id)
 
 
 def reset_password(user) -> str:
