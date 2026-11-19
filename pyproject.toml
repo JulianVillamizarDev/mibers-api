@@ -1,0 +1,41 @@
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["migrations", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "DJ"]
+ignore = ["DJ001", "B904"]
+
+[tool.ruff.lint.per-file-ignores]
+"config/settings/*.py" = ["F403", "F405"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.test"
+python_files = ["test_*.py"]
+testpaths = ["modules"]
+addopts = "-ra --strict-markers"
+markers = ["postgres: requiere una base de datos PostgreSQL (se omite en SQLite)"]
+
+[tool.coverage.run]
+source = ["modules"]
+omit = ["*/migrations/*", "*/tests/*"]
+
+[tool.importlinter]
+root_packages = ["modules", "config"]
+include_external_packages = false
+
+# Monolito modular: un modulo solo puede importar de los que estan debajo.
+# Las FK entre modulos se declaran con cadenas ("app.Modelo") y no cuentan.
+[[tool.importlinter.contracts]]
+name = "Capas del monolito modular"
+type = "layers"
+layers = [
+    "(modules.publishing) | (modules.metrics) | (modules.legal)",
+    "(modules.content)",
+    "(modules.clients)",
+    "(modules.notifications)",
+    "(modules.accounts)",
+    "(modules.audit)",
+    "modules.core",
+]
