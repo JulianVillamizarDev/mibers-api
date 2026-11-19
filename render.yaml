@@ -1,0 +1,53 @@
+# Blueprint de Render. Las credenciales reales (base de datos, WhatsApp) se cargan en el panel de Render.
+# Un solo servicio ejecuta la API (gunicorn) y el worker (run_worker) porque el disco persistente
+# con los archivos de /media solo puede montarse en un servicio. Eso implica UNA instancia.
+services:
+  - type: web
+    name: mibers-api
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile.prod
+    plan: starter # los discos persistentes requieren un plan de pago
+    healthCheckPath: /health
+    numInstances: 1
+    disk:
+      name: media
+      mountPath: /app/media
+      sizeGB: 20
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.prod
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mibers-db
+          property: connectionString
+      - key: ALLOWED_HOSTS
+        sync: false # p. ej. mibers-api.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false # dominio del SPA, p. ej. https://app.mibers.co
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      # Clave AES-256 (base64 de 32 bytes). GUARDAR una copia segura: si se pierde, los datos cifrados
+      # (contactos, numeros de WhatsApp) no se pueden recuperar. NO cambiarla sin migrar los datos.
+      - key: FIELD_ENCRYPTION_KEY
+        sync: false
+      - key: MEDIA_ROOT
+        value: /app/media
+      - key: WHATSAPP_BACKEND
+        value: cloud
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_WEBHOOK_VERIFY_TOKEN
+        sync: false
+      - key: PUBLICATION_OVERDUE_MINUTES
+        value: "30"
+
+databases:
+  - name: mibers-db
+    databaseName: mibers
+    plan: basic-256mb

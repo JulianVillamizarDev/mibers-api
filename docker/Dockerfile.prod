@@ -20,4 +20,4 @@ RUN DJANGO_SECRET_KEY=build FIELD_ENCRYPTION_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY
 
 USER mibers
 EXPOSE 8000
-ENTRYPOINT ["/app/docker/entrypoint.prod.sh"]
+ENTRYPOINT ["sh", "/app/docker/entrypoint.prod.sh"]
