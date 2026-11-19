@@ -46,6 +46,21 @@ services:
         sync: false
       - key: PUBLICATION_OVERDUE_MINUTES
         value: "30"
+      # Meta Graph API (ADR0007). El token y el secreto se cargan en el panel de Render.
+      - key: META_PUBLISHING
+        value: manual
+      - key: META_SYSTEM_USER_TOKEN
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_APP_ID
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v25.0
+      - key: PUBLIC_BASE_URL
+        sync: false # URL publica del servicio, p. ej. https://mibers-api.onrender.com
+      - key: PUBLIC_MEDIA_TTL_SECONDS
+        value: "3600"
 
 databases:
   - name: mibers-db

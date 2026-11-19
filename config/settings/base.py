@@ -170,6 +170,17 @@ WHATSAPP_TEMPLATE_REMINDER = env("WHATSAPP_TEMPLATE_REMINDER", default="recordat
 # Minutos sin confirmar una publicacion pendiente antes de alertar al administrador.
 PUBLICATION_OVERDUE_MINUTES = env.int("PUBLICATION_OVERDUE_MINUTES", default=30)
 
+# --- Meta Graph API (ADR0007) --------------------------------------------------------------------
+# manual = publicacion asistida; graph = Graph API real; fake = adaptador de pruebas.
+META_PUBLISHING = env("META_PUBLISHING", default="manual")
+META_SYSTEM_USER_TOKEN = env("META_SYSTEM_USER_TOKEN", default="")
+META_APP_SECRET = env("META_APP_SECRET", default="")
+META_APP_ID = env("META_APP_ID", default="")
+META_GRAPH_VERSION = env("META_GRAPH_VERSION", default="v25.0")
+# URL publica del backend para que Meta descargue los archivos y vigencia de la firma.
+PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="http://localhost:8000")
+PUBLIC_MEDIA_TTL_SECONDS = env.int("PUBLIC_MEDIA_TTL_SECONDS", default=3600)
+
 # --- Seguridad de campos (RNF02: AES-256) -----------------------------------
 # Clave de 32 bytes codificada en base64 urlsafe. Ver .env.example.
 FIELD_ENCRYPTION_KEY = env("FIELD_ENCRYPTION_KEY")
