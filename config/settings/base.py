@@ -37,6 +37,7 @@ LOCAL_APPS = [
     "modules.clients",
     "modules.content",
     "modules.publishing",
+    "modules.metrics",
     "modules.legal",
 ]
 
