@@ -30,7 +30,7 @@ class Cliente(BaseModel):
     contrato_fin = models.DateField(null=True, blank=True)
     estrategia = models.CharField(max_length=12, choices=Estrategia.choices)
     objetivo = models.TextField(blank=True)
-    manual_marca = models.FileField(upload_to=manual_marca_path, blank=True)
+    manual_marca = models.FileField(upload_to=manual_marca_path, blank=True, max_length=255)
     manual_marca_nombre = models.CharField(max_length=255, blank=True)
 
     activo = models.BooleanField(default=True)
