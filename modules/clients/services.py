@@ -9,6 +9,8 @@ from django.utils import timezone
 from modules.audit import services as audit
 from modules.audit.models import Action
 from modules.core.exceptions import DomainError
+from modules.notifications import services as notifications
+from modules.notifications.models import Alerta
 
 from .models import Cliente, ContactoWhatsApp, CuentaSocial
 
@@ -204,5 +206,17 @@ def update_account(cuenta: CuentaSocial, *, acting_user, request=None, **fields)
 
 
 def _on_account_status_changed(cuenta: CuentaSocial, previous_state: str) -> None:
-    """Punto de extension: aqui se alerta al administrador cuando una cuenta expira o se
-    desvincula (RF19); se conecta en el modulo de notificaciones."""
+    """Avisa al administrador cuando una cuenta expira o se desvincula (RF19)."""
+    tipo = {
+        CuentaSocial.Estado.EXPIRADA: Alerta.Tipo.CUENTA_EXPIRADA,
+        CuentaSocial.Estado.DESVINCULADA: Alerta.Tipo.CUENTA_DESVINCULADA,
+    }.get(cuenta.estado)
+    if tipo is None:
+        return
+    notifications.send_alert(
+        tipo,
+        f"{cuenta.get_red_display()} de {cuenta.cliente.nombre} ({cuenta.handle}).",
+        entity_type="clients.cuentasocial",
+        entity_id=cuenta.pk,
+        dedupe_key=f"cuenta:{cuenta.pk}:{cuenta.estado}:{cuenta.estado_actualizado_at.isoformat()}",
+    )

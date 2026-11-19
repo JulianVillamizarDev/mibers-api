@@ -5,6 +5,7 @@ urlpatterns = [
     path("", include("modules.core.urls")),
     path("api/v1/", include("modules.accounts.urls")),
     path("api/v1/", include("modules.audit.urls")),
+    path("api/v1/", include("modules.notifications.urls")),
     path("api/v1/", include("modules.clients.urls")),
     path("api/v1/", include("modules.content.urls")),
     path("api/v1/", include("modules.legal.urls")),
