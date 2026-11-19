@@ -56,10 +56,45 @@ def update_client(cliente: Cliente, *, acting_user, request=None, manual_marca=N
     return cliente
 
 
+def deactivate_client(cliente: Cliente, *, acting_user, request=None) -> Cliente:
+    """Desactiva conservando el historial durante un anio (RF5)."""
+    if not cliente.activo:
+        raise DomainError("El cliente ya esta desactivado.", "already_inactive")
+    cliente.activo = False
+    cliente.desactivado_at = timezone.now()
+    cliente.save(update_fields=["activo", "desactivado_at", "updated_at"])
+    audit.record(Action.CLIENT_DEACTIVATED, actor=acting_user, entity=cliente, request=request)
+    return cliente
 
 
+def reactivate_client(cliente: Cliente, *, acting_user, request=None) -> Cliente:
+    if cliente.activo:
+        raise DomainError("El cliente ya esta activo.", "already_active")
+    cliente.activo = True
+    cliente.desactivado_at = None
+    cliente.save(update_fields=["activo", "desactivado_at", "updated_at"])
+    audit.record(Action.CLIENT_ACTIVATED, actor=acting_user, entity=cliente, request=request)
+    return cliente
 
 
+def purge_expired_clients(*, now=None) -> int:
+    """Elimina clientes desactivados hace mas de un anio, con sus piezas y archivos.
+    La auditoria se conserva (solo guarda ids y textos, sin claves foraneas)."""
+    now = now or timezone.now()
+    cutoff = now - timedelta(days=RETENTION_DAYS)
+    expired = list(Cliente.objects.filter(activo=False, desactivado_at__lt=cutoff))
+    for cliente in expired:
+        client_id, name = str(cliente.pk), cliente.nombre
+        with transaction.atomic():
+            cliente.delete()
+        shutil.rmtree(Path(settings.MEDIA_ROOT) / "clientes" / client_id, ignore_errors=True)
+        audit.record(
+            Action.CLIENT_UPDATED,
+            entity_type="clients.cliente",
+            entity_id=client_id,
+            metadata={"purged": True, "nombre": name},
+        )
+    return len(expired)
 
 
 # --- Contactos de WhatsApp (RF6, RNF13) --------------------------------------

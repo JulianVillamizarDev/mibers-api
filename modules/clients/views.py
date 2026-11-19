@@ -72,6 +72,17 @@ class ClienteDetailView(APIView):
         return Response(ClienteSerializer(get_client(pk)).data)
 
 
+class ClienteStateView(APIView):
+    """Desactivar / reactivar (RF5)."""
+
+    permission_classes = BASE_PERMISSIONS
+    activate = False
+
+    def post(self, request, pk):
+        cliente = get_client(pk)
+        action = services.reactivate_client if self.activate else services.deactivate_client
+        action(cliente, acting_user=request.user, request=request)
+        return Response(ClienteSerializer(get_client(pk)).data)
 
 
 class ManualMarcaView(APIView):
