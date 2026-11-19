@@ -1,8 +1,6 @@
 # Mibers API
 
-API interna para que la agencia gestione el contenido de redes sociales de sus clientes: clientes y contratos, piezas con
-revision y aprobacion, programacion, publicacion en Instagram y Facebook, envio del contenido al WhatsApp del cliente, alertas
-al director, cronograma y metricas. Los requerimientos estan en [`context.txt`](context.txt).
+API interna para que la agencia gestione el contenido de redes sociales de sus clientes: clientes y contratos, piezas con revision y aprobacion, programacion, publicacion en Instagram y Facebook, envio del contenido al WhatsApp del cliente, alertas al director, cronograma y metricas. Los requerimientos estan en [`context.txt`](context.txt).
 
 **Stack:** Django 5.2 + Django REST Framework, PostgreSQL, JWT, Docker (dev y prod), monolito modular, archivos en `/media`.
 
