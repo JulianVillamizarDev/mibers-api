@@ -36,6 +36,7 @@ LOCAL_APPS = [
     "modules.notifications",
     "modules.clients",
     "modules.content",
+    "modules.publishing",
     "modules.legal",
 ]
 
@@ -163,6 +164,10 @@ WHATSAPP_TEMPLATE_CLIENT_DOCUMENT = env(
 )
 WHATSAPP_TEMPLATE_ALERT = env("WHATSAPP_TEMPLATE_ALERT", default="alerta_director")
 WHATSAPP_TEMPLATE_REMINDER = env("WHATSAPP_TEMPLATE_REMINDER", default="recordatorio_publicacion")
+
+# --- Publicacion ---------------------------------------------------------------------------------
+# Minutos sin confirmar una publicacion pendiente antes de alertar al administrador.
+PUBLICATION_OVERDUE_MINUTES = env.int("PUBLICATION_OVERDUE_MINUTES", default=30)
 
 # --- Seguridad de campos (RNF02: AES-256) -----------------------------------
 # Clave de 32 bytes codificada en base64 urlsafe. Ver .env.example.

@@ -8,6 +8,7 @@ urlpatterns = [
     path("api/v1/", include("modules.notifications.urls")),
     path("api/v1/", include("modules.clients.urls")),
     path("api/v1/", include("modules.content.urls")),
+    path("api/v1/", include("modules.publishing.urls")),
     path("api/v1/", include("modules.legal.urls")),
 ]
 
