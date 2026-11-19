@@ -157,6 +157,14 @@ class CloudApiGateway:
         return data["id"]
 
     # --- API del puerto ---
+    def get_phone_info(self) -> dict:
+        """Valida la configuracion consultando el numero de WhatsApp."""
+        return self._request(
+            "GET",
+            self.base,
+            params={"fields": "display_phone_number,verified_name"},
+        )
+
     def send_template(self, *, to, template, body_params, header=None) -> SendResult:
         components = []
         if header is not None:
@@ -164,9 +172,13 @@ class CloudApiGateway:
             if header.kind == "document":
                 media["filename"] = header.filename
             components.append({"type": "header", "parameters": [{"type": header.kind, header.kind: media}]})
-        components.append(
-            {"type": "body", "parameters": [{"type": "text", "text": sanitize_param(p)} for p in body_params]}
-        )
+        if body_params:
+            components.append(
+                {
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": sanitize_param(p)} for p in body_params],
+                }
+            )
         payload = {
             "messaging_product": "whatsapp",
             "to": to.lstrip("+"),

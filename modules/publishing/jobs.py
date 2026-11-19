@@ -11,6 +11,8 @@ from datetime import timedelta
 from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 
+from modules.clients import services as client_services
+from modules.clients.meta import GraphError, get_graph_client, page_token
 from modules.clients.models import CuentaSocial
 from modules.content.models import Tipo
 from modules.core import jobs as job_queue
@@ -18,7 +20,6 @@ from modules.core.exceptions import DomainError
 from modules.core.networks import Network
 
 from . import services
-from .graph import GraphError, get_graph_client
 from .models import TareaPublicacion
 from .public_media import build_public_media_url
 from .publishers import (
@@ -232,14 +233,6 @@ def _fb_media_ids(tarea: TareaPublicacion) -> list[str]:
     return [value for value in tarea.externo_contenedor_id.split(",") if value]
 
 
-def _fb_page_token(tarea: TareaPublicacion, client) -> str:
-    data = client.get(f"/{tarea.cuenta.id_externo}", {"fields": "access_token"})
-    token = str(data.get("access_token") or "")
-    if not token:
-        raise GraphError("Meta no devolvio el token de la pagina de Facebook.", retryable=False)
-    return token
-
-
 def _fb_save_media_ids(tarea: TareaPublicacion, media_ids: list[str]) -> None:
     tarea.externo_contenedor_id = ",".join(media_ids)
     tarea.save(update_fields=["externo_contenedor_id", "updated_at"])
@@ -278,7 +271,7 @@ def _fb_carousel_post(tarea: TareaPublicacion, client, token: str, archivos: lis
 
 
 def _publish_facebook(tarea: TareaPublicacion, client, waits: int) -> None:
-    token = _fb_page_token(tarea, client)
+    token = page_token(client, tarea.cuenta.id_externo)
     if tarea.externo_post_id:
         _finish(tarea, client, token=token)
         return
@@ -353,6 +346,11 @@ def run_graph_publish(
     except _Deferred:
         return
     except GraphError as exc:
+        if exc.code == 190:
+            try:
+                client_services.verify_meta_accounts()
+            except Exception:  # noqa: BLE001 - la verificacion no debe ocultar el fallo original
+                logger.exception("Fallo la verificacion de cuentas tras un token invalido")
         if exc.retryable and not last_attempt:
             _state(tarea, "REINTENTANDO")
             raise

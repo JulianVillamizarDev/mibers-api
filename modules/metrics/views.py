@@ -10,12 +10,21 @@ from modules.clients.models import Cliente
 from modules.core.exceptions import DomainError
 from modules.core.networks import Network
 from modules.core.pagination import StandardPagination
-from modules.core.permissions import IsStaffOrAdmin
+from modules.core.permissions import IsAdmin, IsStaffOrAdmin
 
 from . import services
 from .models import MetricaMensual
 
+try:
+    from drf_spectacular.utils import extend_schema
+except ImportError:  # drf-spectacular es opcional en local
+
+    def extend_schema(*args, **kwargs):
+        return lambda view: view
+
+
 STAFF = [*APIView.permission_classes, IsStaffOrAdmin]
+ADMIN = [*APIView.permission_classes, IsAdmin]
 MONTH_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
 
 
@@ -51,10 +60,16 @@ class MetricaSerializer(serializers.ModelSerializer):
             "visualizaciones",
             "interacciones",
             "seguidores",
+            "origen",
+            "sincronizado_at",
             "registrado_por_username",
             "updated_at",
         ]
         read_only_fields = fields
+
+
+class SyncMetricasSerializer(serializers.Serializer):
+    mes = MonthField(required=False)
 
 
 class MetricaInputSerializer(serializers.Serializer):
@@ -120,3 +135,21 @@ class ClienteMetricasView(APIView):
         return Response(
             MetricaSerializer(metrica).data, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
         )
+
+
+class ClienteMetricasSyncView(APIView):
+    """Sincroniza desde Meta las metricas del cliente (solo Administrador)."""
+
+    permission_classes = ADMIN
+
+    @extend_schema(request=SyncMetricasSerializer, responses=MetricaSerializer(many=True))
+    def post(self, request, pk):
+        cliente = get_object_or_404(Cliente, pk=pk)
+        data = SyncMetricasSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        result = services.sync_month(
+            cliente=cliente,
+            mes=data.validated_data.get("mes"),
+            acting_user=request.user,
+        )
+        return Response(MetricaSerializer(result["metricas"], many=True).data)

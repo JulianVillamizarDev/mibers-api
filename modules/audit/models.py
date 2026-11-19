@@ -55,6 +55,7 @@ class Action(models.TextChoices):
     ALERT_SENT = "ALERT_SENT", "Alerta enviada al administrador"
     # Metricas
     METRICS_CHANGED = "METRICS_CHANGED", "Metricas registradas"
+    METRICS_SYNCED = "METRICS_SYNCED", "Metricas sincronizadas desde Meta"
 
 
 class AuditQuerySet(models.QuerySet):

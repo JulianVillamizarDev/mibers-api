@@ -6,7 +6,7 @@ import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
 
-from modules.publishing.graph import FakeGraphClient
+from modules.clients.meta import FakeGraphClient
 from modules.publishing.management.commands import meta_check
 
 

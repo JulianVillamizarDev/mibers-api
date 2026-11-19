@@ -3,7 +3,7 @@
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from modules.publishing.graph import FakeGraphClient, GraphClient, GraphError
+from modules.clients.meta import FakeGraphClient, GraphClient, GraphError
 
 FAKE_ME = {"id": "61596391660589", "name": "mibers-media-api"}
 FAKE_ACCOUNTS = {

@@ -8,8 +8,8 @@ import httpx
 import pytest
 from django.core.exceptions import ImproperlyConfigured
 
-from modules.publishing import graph
-from modules.publishing.graph import FakeGraphClient, GraphClient, GraphError
+from modules.clients import meta
+from modules.clients.meta import FakeGraphClient, GraphClient, GraphError
 
 
 def make_client(handler, *, token="TOKEN", app_secret="SECRET", version="v25.0"):
@@ -141,6 +141,26 @@ def test_respuesta_exitosa_que_no_es_json_es_error():
     assert error.value.retryable is False
 
 
+def test_page_token_consulta_y_devuelve_el_token_de_la_pagina():
+    fake = FakeGraphClient([{"access_token": "PAGE-TOKEN"}])
+
+    assert meta.page_token(fake, "PAGE1") == "PAGE-TOKEN"
+    assert fake.calls == [
+        {
+            "method": "GET",
+            "path": "/PAGE1",
+            "params": {"fields": "access_token"},
+            "data": {},
+        }
+    ]
+
+
+def test_page_token_falla_si_meta_no_lo_devuelve():
+    fake = FakeGraphClient([{"id": "PAGE1"}])
+    with pytest.raises(GraphError, match="token de la pagina"):
+        meta.page_token(fake, "PAGE1")
+
+
 def test_fake_graph_client_registra_llamadas_y_respuestas():
     fallo = GraphError("sin permisos", code=200, retryable=False)
     fake = FakeGraphClient([{"data": [{"id": "pagina"}]}, fallo])
@@ -161,19 +181,19 @@ def test_fake_graph_client_registra_llamadas_y_respuestas():
 
 def test_get_graph_client_segun_configuracion(settings):
     settings.META_PUBLISHING = "fake"
-    assert isinstance(graph.get_graph_client(), FakeGraphClient)
+    assert isinstance(meta.get_graph_client(), FakeGraphClient)
 
     settings.META_PUBLISHING = "manual"
     with pytest.raises(ImproperlyConfigured):
-        graph.get_graph_client()
+        meta.get_graph_client()
 
     settings.META_PUBLISHING = "graph"
     settings.META_SYSTEM_USER_TOKEN = ""
     with pytest.raises(ImproperlyConfigured):
-        graph.get_graph_client()
+        meta.get_graph_client()
 
     settings.META_SYSTEM_USER_TOKEN = "TOKEN"
-    client = graph.get_graph_client()
+    client = meta.get_graph_client()
     assert isinstance(client, GraphClient)
-    assert client.base == f"{graph.GRAPH_BASE_URL}/{settings.META_GRAPH_VERSION}"
+    assert client.base == f"{meta.GRAPH_BASE_URL}/{settings.META_GRAPH_VERSION}"
     client.client.close()

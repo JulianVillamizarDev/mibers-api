@@ -7,6 +7,7 @@ import pytest
 from django.utils import timezone
 
 from modules.audit.models import AuditLog
+from modules.clients.meta import FakeGraphClient, GraphError
 from modules.clients.models import CuentaSocial
 from modules.content import services as content
 from modules.content.models import Pieza
@@ -16,7 +17,6 @@ from modules.notifications.gateway import FakeGateway
 from modules.notifications.models import Alerta
 from modules.publishing import jobs as graph_jobs
 from modules.publishing import services
-from modules.publishing.graph import FakeGraphClient, GraphError
 from modules.publishing.models import TareaPublicacion
 from modules.publishing.publishers import (
     GraphApiPublisher,
@@ -448,6 +448,21 @@ def test_media_no_lista_es_reintentable_en_el_job(fake_client, make_task):
     job = job_queue.Job.objects.get(kind=graph_jobs.JOB_KIND)
     assert task.estado == "PENDIENTE" and task.externo_estado == "REINTENTANDO"
     assert job.status == "PENDING"
+
+
+def test_error_190_dispara_la_verificacion_de_cuentas(fake_client, make_task, monkeypatch):
+    called = []
+    monkeypatch.setattr(
+        graph_jobs.client_services,
+        "verify_meta_accounts",
+        lambda: called.append(1) or {},
+    )
+    fake_client.responses = [GraphError("token invalido", code=190, retryable=False)]
+    _, task = make_task("INSTAGRAM", "POST", ("image",))
+
+    task = run(task)
+
+    assert called == [1] and task.estado == "FALLIDA"
 
 
 def test_error_definitivo_falla_y_alerta_con_codigo(fake_client, make_task):

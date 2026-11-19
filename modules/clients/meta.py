@@ -159,6 +159,15 @@ class FakeGraphClient:
         return result
 
 
+def page_token(client, page_id: str) -> str:
+    """Token de página para publicar o leer insights de Facebook; no se guarda."""
+    data = client.get(f"/{page_id}", {"fields": "access_token"})
+    token = str(data.get("access_token") or "")
+    if not token:
+        raise GraphError("Meta no devolvio el token de la pagina de Facebook.", retryable=False)
+    return token
+
+
 def get_graph_client():
     backend = settings.META_PUBLISHING
     if backend == "fake":
