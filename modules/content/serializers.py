@@ -38,6 +38,13 @@ class RedSerializer(serializers.Serializer):
     copy_final = serializers.CharField()
 
 
+class ComentarioSerializer(serializers.ModelSerializer):
+    autor_username = serializers.CharField(source="autor.username", default="", read_only=True)
+
+    class Meta:
+        model = ComentarioRevision
+        fields = ["id", "decision", "comentario", "autor", "autor_username", "created_at"]
+        read_only_fields = fields
 
 
 class PiezaSerializer(serializers.ModelSerializer):
@@ -149,6 +156,8 @@ class PiezaWriteSerializer(serializers.Serializer):
         return value
 
 
+class ComentarioInputSerializer(serializers.Serializer):
+    comentario = serializers.CharField(required=False, allow_blank=True, default="")
 
 
 class ArchivoUploadSerializer(serializers.Serializer):

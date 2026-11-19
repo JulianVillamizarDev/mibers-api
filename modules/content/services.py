@@ -268,12 +268,89 @@ def set_editable_file(pieza: Pieza, uploaded, *, acting_user, request=None) -> P
 
 
 # --- Preparacion para revisar/programar/publicar (RF9, RNF08) ---------------------------------
+def readiness_problems(pieza: Pieza) -> list[str]:
+    """Todo lo que impide revisar, programar o publicar la pieza. Lista vacia = lista."""
+    pieza = load_piece(pieza.pk)
+    problems: list[str] = []
+    if not pieza.cliente.activo:
+        problems.append("El cliente esta desactivado.")
+    networks = pieza.network_list()
+    if not networks:
+        problems.append("Selecciona al menos una red destino.")
+    if pieza.programada_para is None:
+        problems.append("Falta la fecha y hora de publicacion.")
+    infos = [
+        media_rules.MediaInfo(
+            kind=a.kind, fmt=a.formato, width=a.ancho, height=a.alto, size=a.tamano, duration=a.duracion
+        )
+        for a in pieza.archivos.all()
+    ]
+    for red in networks:
+        if not pieza.copy_final(red).strip():
+            problems.append(f"{Network(red).label}: falta el copy.")
+        if (red, pieza.tipo) not in media_rules.RULES:
+            problems.append(f"{Network(red).label} no soporta piezas de tipo {pieza.tipo.lower()}.")
+            continue
+        problems.extend(media_rules.validate_set(infos, red, pieza.tipo))
+    return problems
 
 
 # --- Revision (RF12) -------------------------------------------------------------------------
+def _require_admin(actor) -> None:
+    if actor is None or actor.role != Role.ADMIN:
+        raise DomainError("Solo el administrador puede aprobar o solicitar cambios.", "admin_required", 403)
 
 
+def submit_for_review(pieza: Pieza, *, acting_user, request=None) -> Pieza:
+    if pieza.estado not in (Estado.BORRADOR, Estado.CAMBIOS_SOLICITADOS):
+        state_machine.ensure_transition(pieza.estado, Estado.EN_REVISION)  # lanza el error adecuado
+    problems = readiness_problems(pieza)
+    if problems:
+        raise DomainError(problems, "piece_incomplete")
+    with transaction.atomic():
+        change_state(pieza, Estado.EN_REVISION, actor=acting_user)
+        ComentarioRevision.objects.create(
+            pieza=pieza, autor=acting_user, decision=ComentarioRevision.Decision.ENVIADA
+        )
+        audit.record(Action.PIECE_SUBMITTED, actor=acting_user, entity=pieza, request=request)
+    return load_piece(pieza.pk)
 
 
+def approve(pieza: Pieza, *, acting_user, comentario="", request=None) -> Pieza:
+    _require_admin(acting_user)
+    state_machine.ensure_transition(pieza.estado, Estado.APROBADA)
+    problems = readiness_problems(pieza)
+    if problems:
+        raise DomainError(problems, "piece_incomplete")
+    with transaction.atomic():
+        change_state(pieza, Estado.APROBADA, actor=acting_user)
+        ComentarioRevision.objects.create(
+            pieza=pieza,
+            autor=acting_user,
+            decision=ComentarioRevision.Decision.APROBADA,
+            comentario=comentario,
+        )
+        audit.record(Action.PIECE_APPROVED, actor=acting_user, entity=pieza, request=request)
+    return load_piece(pieza.pk)
 
 
+def request_changes(pieza: Pieza, *, acting_user, comentario: str, request=None) -> Pieza:
+    _require_admin(acting_user)
+    if not comentario or not comentario.strip():
+        raise DomainError("Indica que cambios se necesitan.", "comment_required")
+    with transaction.atomic():
+        change_state(pieza, Estado.CAMBIOS_SOLICITADOS, actor=acting_user)
+        ComentarioRevision.objects.create(
+            pieza=pieza,
+            autor=acting_user,
+            decision=ComentarioRevision.Decision.CAMBIOS,
+            comentario=comentario.strip(),
+        )
+        audit.record(
+            Action.PIECE_CHANGES_REQUESTED,
+            actor=acting_user,
+            entity=pieza,
+            metadata={"comentario": comentario.strip()},
+            request=request,
+        )
+    return load_piece(pieza.pk)

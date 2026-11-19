@@ -12,5 +12,9 @@ urlpatterns = [
         "piezas/<uuid:pk>/archivos/<uuid:archivo_id>", views.ArchivoDetailView.as_view(), name="pieza-archivo"
     ),
     path("piezas/<uuid:pk>/archivo-editable", views.ArchivoEditableView.as_view(), name="pieza-editable"),
+    path("piezas/<uuid:pk>/enviar-revision", views.EnviarRevisionView.as_view(), name="pieza-enviar"),
+    path("piezas/<uuid:pk>/aprobar", views.AprobarView.as_view(), name="pieza-aprobar"),
+    path("piezas/<uuid:pk>/solicitar-cambios", views.SolicitarCambiosView.as_view(), name="pieza-cambios"),
+    path("piezas/<uuid:pk>/revisiones", views.RevisionesView.as_view(), name="pieza-revisiones"),
     path("archivos/<uuid:archivo_id>", views.ArchivoDownloadView.as_view(), name="archivo-descarga"),
 ]

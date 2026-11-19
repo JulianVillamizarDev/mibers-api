@@ -167,12 +167,50 @@ class ArchivoEditableView(APIView):
 
 
 # --- Revision (RF12) ---------------------------------------------------------------------------------
+class EnviarRevisionView(APIView):
+    permission_classes = STAFF
+
+    def post(self, request, pk):
+        pieza = services.submit_for_review(get_piece(pk), acting_user=request.user, request=request)
+        return Response(PiezaSerializer(pieza).data)
 
 
+class AprobarView(APIView):
+    permission_classes = ADMIN
+
+    def post(self, request, pk):
+        data = ComentarioInputSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        pieza = services.approve(
+            get_piece(pk),
+            acting_user=request.user,
+            comentario=data.validated_data["comentario"],
+            request=request,
+        )
+        return Response(PiezaSerializer(pieza).data)
 
 
+class SolicitarCambiosView(APIView):
+    permission_classes = ADMIN
+
+    def post(self, request, pk):
+        data = ComentarioInputSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        pieza = services.request_changes(
+            get_piece(pk),
+            acting_user=request.user,
+            comentario=data.validated_data["comentario"],
+            request=request,
+        )
+        return Response(PiezaSerializer(pieza).data)
 
 
+class RevisionesView(APIView):
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        pieza = get_object_or_404(Pieza, pk=pk)
+        return Response(ComentarioSerializer(pieza.revisiones.select_related("autor"), many=True).data)
 
 
 # --- Cronograma y empresas actuales (RF20, RF5) -----------------------------------------------------------
