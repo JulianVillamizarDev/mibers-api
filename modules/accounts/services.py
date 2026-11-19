@@ -23,6 +23,8 @@ User = get_user_model()
 _TEMP_ALPHABET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 
+def generate_temporary_password(length: int = 12) -> str:
+    return "".join(secrets.choice(_TEMP_ALPHABET) for _ in range(length))
 
 
 # --- Sesion -----------------------------------------------------------------
@@ -119,14 +121,63 @@ def revoke_all_sessions(user, *, except_session_id=None) -> None:
 # --- Contrasenas (RF2) ------------------------------------------------------
 
 
+def reset_password(user) -> str:
+    """Genera una contrasena temporal (devuelta una sola vez) y obliga a cambiarla."""
+    temporary = generate_temporary_password()
+    user.set_password(temporary)
+    user.must_change_password = True
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.save(update_fields=["password", "must_change_password", "failed_login_attempts", "locked_until"])
+    revoke_all_sessions(user)
+    return temporary
 
 
 # --- Gestion de personal (RF2, RF3) -----------------------------------------
+def _active_admins():
+    return User.objects.filter(role=Role.ADMIN, is_active=True)
 
 
+def create_user(*, username, role=Role.STAFF, first_name="", last_name="", cargo="", whatsapp_number=None):
+    user = User(
+        username=username,
+        role=role,
+        first_name=first_name,
+        last_name=last_name,
+        cargo=cargo,
+        whatsapp_number=whatsapp_number or None,
+    )
+    temporary = generate_temporary_password()
+    user.set_password(temporary)
+    user.must_change_password = True
+    user.save()
+    return user, temporary
 
 
+def update_user(user, **fields):
+    new_role = fields.get("role")
+    if new_role and new_role != Role.ADMIN and user.role == Role.ADMIN and user.is_active:
+        if not _active_admins().exclude(pk=user.pk).exists():
+            raise DomainError("Debe quedar al menos un administrador activo.", "last_admin")
+    for name, value in fields.items():
+        setattr(user, name, value)
+    user.save()
+    return user
 
 
+def deactivate_user(user, *, acting_user):
+    """Desactiva sin borrar, para conservar lo que hizo el colaborador (RF2)."""
+    if user.pk == acting_user.pk:
+        raise DomainError("No puedes desactivar tu propia cuenta.", "cannot_deactivate_self")
+    if user.role == Role.ADMIN and not _active_admins().exclude(pk=user.pk).exists():
+        raise DomainError("Debe quedar al menos un administrador activo.", "last_admin")
+    user.is_active = False
+    user.save(update_fields=["is_active"])
+    revoke_all_sessions(user)
+    return user
 
 
+def activate_user(user):
+    user.is_active = True
+    user.save(update_fields=["is_active"])
+    return user

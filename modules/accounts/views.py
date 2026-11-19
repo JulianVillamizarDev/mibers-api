@@ -64,11 +64,72 @@ class MeView(APIView):
 
 
 # --- Gestion de personal (solo Administrador) --------------------------------
+class UserListCreateView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def get(self, request):
+        users = User.objects.order_by("username")
+        active = request.query_params.get("is_active")
+        if active in ("true", "false"):
+            users = users.filter(is_active=active == "true")
+        return Response(UserSerializer(users, many=True).data)
+
+    def post(self, request):
+        data = UserCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        user, temporary = services.create_user(
+            **data.validated_data, acting_user=request.user, request=request
+        )
+        return Response(
+            {**UserSerializer(user).data, "temporary_password": temporary},
+            status=status.HTTP_201_CREATED,
+        )
 
 
+class UserDetailView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def get(self, request, pk):
+        return Response(UserSerializer(get_object_or_404(User, pk=pk)).data)
+
+    def patch(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        data = UserUpdateSerializer(data=request.data, partial=True)
+        data.is_valid(raise_exception=True)
+        fields = dict(data.validated_data)
+        if "whatsapp_number" in fields:
+            fields["whatsapp_number"] = fields["whatsapp_number"] or None
+        return Response(
+            UserSerializer(
+                services.update_user(user, acting_user=request.user, request=request, **fields)
+            ).data
+        )
 
 
+class UserDeactivateView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def post(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        return Response(
+            UserSerializer(services.deactivate_user(user, acting_user=request.user, request=request)).data
+        )
 
 
+class UserActivateView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def post(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        return Response(
+            UserSerializer(services.activate_user(user, acting_user=request.user, request=request)).data
+        )
 
 
+class UserResetPasswordView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def post(self, request, pk):
+        user = get_object_or_404(User, pk=pk)
+        temporary = services.reset_password(user, acting_user=request.user, request=request)
+        return Response({"temporary_password": temporary})
