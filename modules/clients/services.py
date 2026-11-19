@@ -224,9 +224,83 @@ def update_account(
 
 
 # --- Verificacion de cuentas contra Meta (HU-08, ADR0008) -----------------------------------------
+def _meta_error_code(error: GraphError) -> int | None:
+    try:
+        return int(error.code) if error.code is not None else None
+    except (TypeError, ValueError):
+        return None
 
 
+def _set_account_state(cuenta: CuentaSocial, estado: str) -> bool:
+    if cuenta.estado == estado:
+        return False
+    update_account(
+        cuenta,
+        estado=estado,
+        acting_user=None,
+        actor_username="sistema",
+    )
+    return True
 
 
+def _expire_all(accounts: list[CuentaSocial], result: dict) -> None:
+    for cuenta in accounts:
+        if _set_account_state(cuenta, CuentaSocial.Estado.EXPIRADA):
+            result["expiradas"] += 1
 
 
+def verify_meta_accounts() -> dict:
+    """Verifica las cuentas con id_externo contra Meta y actualiza su estado (HU-08).
+
+    Un token invalido expira todas las cuentas. Los codigos de cuenta sin permiso o
+    inexistente desvinculan solo esa cuenta. Los fallos de red o 5xx no cambian nada.
+    """
+    result = {
+        "omitida": "",
+        "revisadas": 0,
+        "vinculadas": 0,
+        "expiradas": 0,
+        "desvinculadas": 0,
+        "sin_cambios": 0,
+    }
+    if settings.META_PUBLISHING == "manual":
+        result["omitida"] = "META_PUBLISHING=manual"
+        return result
+    if not settings.META_SYSTEM_USER_TOKEN:
+        result["omitida"] = "sin META_SYSTEM_USER_TOKEN"
+        return result
+
+    accounts = list(CuentaSocial.objects.exclude(id_externo="").select_related("cliente").order_by("red"))
+    result["revisadas"] = len(accounts)
+    if not accounts:
+        return result
+    try:
+        client = get_graph_client()
+    except ImproperlyConfigured as exc:
+        result["omitida"] = str(exc)
+        return result
+
+    try:
+        for cuenta in accounts:
+            fields = "username" if cuenta.red == "INSTAGRAM" else "name,access_token"
+            try:
+                client.get(f"/{cuenta.id_externo}", {"fields": fields})
+            except GraphError as exc:
+                code = _meta_error_code(exc)
+                if code == TOKEN_ERROR_CODE:
+                    _expire_all(accounts, result)
+                    break
+                if code in UNLINK_ERROR_CODES or (code is not None and 200 <= code <= 299):
+                    if _set_account_state(cuenta, CuentaSocial.Estado.DESVINCULADA):
+                        result["desvinculadas"] += 1
+                else:
+                    result["sin_cambios"] += 1
+                    logger.warning("No se pudo verificar la cuenta %s: %s", cuenta.pk, exc)
+            else:
+                if _set_account_state(cuenta, CuentaSocial.Estado.VINCULADA):
+                    result["vinculadas"] += 1
+                else:
+                    result["sin_cambios"] += 1
+    finally:
+        client.close()
+    return result
