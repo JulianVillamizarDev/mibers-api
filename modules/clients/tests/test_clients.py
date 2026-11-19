@@ -273,3 +273,32 @@ def test_estado_de_la_cuenta_cambia_y_se_audita(admin_client, staff_client, clie
         ("DESVINCULADA", "VINCULADA"),
     ]
     assert CuentaSocial.objects.get().estado == "VINCULADA"
+
+
+# --- RF19: alerta al admin cuando una cuenta expira o se desvincula --------------------------------
+def test_expirar_o_desvincular_una_cuenta_alerta_al_admin(admin_client, cliente):
+    from modules.notifications.models import Alerta
+
+    url = f"{CLIENTS}/{cliente['id']}/cuentas"
+    account = admin_client.post(url, ACCOUNT, format="json").json()
+    assert Alerta.objects.count() == 0  # vincular no alerta
+    admin_client.patch(f"{url}/{account['id']}", {"estado": "EXPIRADA"}, format="json")
+    admin_client.patch(
+        f"{url}/{account['id']}", {"estado": "VINCULADA"}, format="json"
+    )  # recuperada: sin alerta
+    admin_client.patch(f"{url}/{account['id']}", {"estado": "DESVINCULADA"}, format="json")
+    tipos = list(Alerta.objects.order_by("created_at").values_list("tipo", flat=True))
+    assert tipos == ["CUENTA_EXPIRADA", "CUENTA_DESVINCULADA"]
+    assert (
+        "Instagram de Cafe del Valle" in Alerta.objects.first().mensaje
+        or "Cafe del Valle" in Alerta.objects.last().mensaje
+    )
+
+
+def test_editar_datos_de_la_cuenta_sin_cambiar_estado_no_alerta(admin_client, cliente):
+    from modules.notifications.models import Alerta
+
+    url = f"{CLIENTS}/{cliente['id']}/cuentas"
+    account = admin_client.post(url, ACCOUNT, format="json").json()
+    admin_client.patch(f"{url}/{account['id']}", {"handle": "@nuevo"}, format="json")
+    assert Alerta.objects.count() == 0
