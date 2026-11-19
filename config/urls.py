@@ -6,6 +6,7 @@ urlpatterns = [
     path("api/v1/", include("modules.accounts.urls")),
     path("api/v1/", include("modules.audit.urls")),
     path("api/v1/", include("modules.clients.urls")),
+    path("api/v1/", include("modules.legal.urls")),
 ]
 
 if settings.HAS_SPECTACULAR:

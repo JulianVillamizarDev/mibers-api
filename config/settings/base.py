@@ -34,6 +34,7 @@ LOCAL_APPS = [
     "modules.accounts",
     "modules.audit",
     "modules.clients",
+    "modules.legal",
 ]
 
 # drf-spectacular necesita PyYAML; se activa solo si esta instalado.
