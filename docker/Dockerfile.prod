@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DJANGO_SETTINGS_MODULE=config.settings.prod
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 mibers
+
+WORKDIR /app
+COPY requirements/ requirements/
+RUN pip install --no-cache-dir -r requirements/prod.txt
+
+COPY --chown=mibers:mibers . .
+RUN mkdir -p /app/media /app/staticfiles && chown -R mibers:mibers /app/media /app/staticfiles
+
+# collectstatic no necesita secretos reales ni base de datos
+RUN DJANGO_SECRET_KEY=build FIELD_ENCRYPTION_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY= \
+    DATABASE_URL=sqlite:////tmp/build.db python manage.py collectstatic --noinput
+
+USER mibers
+EXPOSE 8000
+ENTRYPOINT ["/app/docker/entrypoint.prod.sh"]
