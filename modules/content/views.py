@@ -36,11 +36,70 @@ def get_piece(pk) -> Pieza:
     return get_object_or_404(selectors.pieces_queryset(), pk=pk)
 
 
+def parse_day(value: str | None) -> date:
+    if not value:
+        return now_bogota().date()
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise DomainError("La fecha debe tener formato AAAA-MM-DD.", "invalid_date") from exc
 
 
 # --- Piezas ------------------------------------------------------------------------------------
+class PiezaListCreateView(APIView):
+    permission_classes = STAFF
+
+    def get(self, request):
+        params = request.query_params
+        queryset = selectors.pieces_queryset()
+        if params.get("cliente"):
+            queryset = queryset.filter(cliente_id=params["cliente"])
+        if params.get("estado"):
+            queryset = queryset.filter(estado__in=params["estado"].split(","))
+        if params.get("tipo") in Tipo.values:
+            queryset = queryset.filter(tipo=params["tipo"])
+        if params.get("red") in Network.values:
+            queryset = queryset.filter(redes__red=params["red"]).distinct()
+        if params.get("desde"):
+            queryset = queryset.filter(programada_para__gte=bogota_day_bounds(parse_day(params["desde"]))[0])
+        if params.get("hasta"):
+            queryset = queryset.filter(programada_para__lt=bogota_day_bounds(parse_day(params["hasta"]))[1])
+        if params.get("search"):
+            queryset = queryset.filter(titulo__icontains=params["search"])
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(PiezaListSerializer(page, many=True).data)
+
+    def post(self, request):
+        data = PiezaWriteSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        fields = dict(data.validated_data)
+        if "cliente" not in fields or "tipo" not in fields:
+            raise DomainError("cliente y tipo son obligatorios.", "validation_error")
+        cliente = get_object_or_404(Cliente, pk=fields.pop("cliente"))
+        pieza = services.create_piece(cliente=cliente, acting_user=request.user, request=request, **fields)
+        return Response(PiezaSerializer(pieza).data, status=status.HTTP_201_CREATED)
 
 
+class PiezaDetailView(APIView):
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        return Response(PiezaSerializer(get_piece(pk)).data)
+
+    def patch(self, request, pk):
+        pieza = get_piece(pk)
+        data = PiezaWriteSerializer(data=request.data, partial=True)
+        data.is_valid(raise_exception=True)
+        fields = dict(data.validated_data)
+        if "cliente" in fields:
+            raise DomainError("El cliente de una pieza no puede cambiarse.", "client_locked")
+        pieza = services.update_piece(pieza, acting_user=request.user, request=request, **fields)
+        return Response(PiezaSerializer(pieza).data)
+
+    def delete(self, request, pk):
+        services.delete_piece(get_piece(pk), acting_user=request.user, request=request)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 # --- Archivos --------------------------------------------------------------------------------------

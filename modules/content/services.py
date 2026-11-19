@@ -27,6 +27,14 @@ def load_piece(pk) -> Pieza:
 
 
 # --- Estados -----------------------------------------------------------------
+def change_state(pieza: Pieza, target: str, *, actor=None) -> Pieza:
+    """Unica puerta para cambiar el estado: valida la transicion y avisa a otros modulos."""
+    state_machine.ensure_transition(pieza.estado, target)
+    old = pieza.estado
+    pieza.estado = target
+    pieza.save(update_fields=["estado", "updated_at"])
+    piece_state_changed.send(sender=Pieza, pieza=pieza, old_state=old, new_state=target, actor=actor)
+    return pieza
 
 
 def _ensure_editable(pieza: Pieza) -> None:
@@ -71,10 +79,62 @@ def _return_to_review_if_needed(pieza: Pieza, before: dict, *, actor, request, r
 # --- Ficha (RF9, RF11) ---------------------------------------------------------------
 
 
+@transaction.atomic
+def create_piece(*, cliente, tipo, acting_user, request=None, redes=None, **fields) -> Pieza:
+    if not cliente.activo:
+        raise DomainError("El cliente esta desactivado.", "client_inactive")
+    fields.setdefault("responsable", acting_user)
+    pieza = Pieza.objects.create(cliente=cliente, tipo=tipo, creado_por=acting_user, **fields)
+    _set_networks(pieza, redes or [])
+    audit.record(
+        Action.PIECE_CREATED, actor=acting_user, entity=pieza, metadata={"tipo": tipo}, request=request
+    )
+    return load_piece(pieza.pk)
 
 
+@transaction.atomic
+def update_piece(pieza: Pieza, *, acting_user, request=None, redes=None, **fields) -> Pieza:
+    _ensure_editable(pieza)
+    if "tipo" in fields and fields["tipo"] != pieza.tipo:
+        if pieza.estado not in (Estado.BORRADOR, Estado.CAMBIOS_SOLICITADOS):
+            raise DomainError("El tipo solo puede cambiarse en borrador.", "type_locked", 409)
+    before = _snapshot(pieza)
+    changed = sorted(name for name, value in fields.items() if getattr(pieza, name) != value)
+    for name, value in fields.items():
+        setattr(pieza, name, value)
+    pieza.save()
+    if redes is not None:
+        _set_networks(pieza, redes)
+        changed.append("redes")
+    # Si cambia el tipo, los archivos ya subidos deben seguir siendo validos para el nuevo tipo.
+    _return_to_review_if_needed(
+        pieza, before, actor=acting_user, request=request, reason="Se edito el contenido de la pieza."
+    )
+    audit.record(
+        Action.PIECE_UPDATED, actor=acting_user, entity=pieza, metadata={"fields": changed}, request=request
+    )
+    return load_piece(pieza.pk)
 
 
+@transaction.atomic
+def delete_piece(pieza: Pieza, *, acting_user, request=None) -> None:
+    """Solo se eliminan borradores; el resto conserva su historial."""
+    if pieza.estado != Estado.BORRADOR:
+        raise DomainError("Solo se pueden eliminar piezas en borrador.", "not_draft", 409)
+    piece_id = str(pieza.pk)
+    for archivo in pieza.archivos.all():
+        archivo.archivo.delete(save=False)
+    if pieza.archivo_editable:
+        pieza.archivo_editable.delete(save=False)
+    pieza.delete()
+    audit.record(
+        Action.PIECE_UPDATED,
+        actor=acting_user,
+        entity_type="content.pieza",
+        entity_id=piece_id,
+        metadata={"op": "deleted"},
+        request=request,
+    )
 
 
 # --- Archivos (RF8, RNF08) ---------------------------------------------------------------
