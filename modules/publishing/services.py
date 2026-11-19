@@ -162,6 +162,10 @@ def _generate_tasks(pieza: Pieza, now) -> list[TareaPublicacion]:
                 "enlace": "",
                 "motivo": "",
                 "publicada_at": None,
+                "modo": TareaPublicacion.Modo.MANUAL,
+                "externo_contenedor_id": "",
+                "externo_post_id": "",
+                "externo_estado": "",
             },
         )
         tasks.append(task)
@@ -195,7 +199,7 @@ def process_due_piece(pieza: Pieza, now) -> None:
             },
         )
     for task in tasks:
-        get_publisher(task.red).dispatch(task)
+        get_publisher(task.red, task.cuenta).dispatch(task)
 
 
 def run_tick(now=None) -> dict:
@@ -273,7 +277,14 @@ def _refresh_piece_state(pieza_id, actor) -> Pieza:
     return pieza
 
 
-def confirm_published(tarea: TareaPublicacion, *, enlace: str, acting_user, request=None) -> TareaPublicacion:
+def confirm_published(
+    tarea: TareaPublicacion,
+    *,
+    enlace: str,
+    acting_user,
+    request=None,
+    actor_username: str = "",
+) -> TareaPublicacion:
     if tarea.estado not in (Estado_T.PENDIENTE, Estado_T.FALLIDA):
         raise DomainError("Esta publicacion no esta pendiente.", "invalid_task_state", 409)
     _validate_link(tarea.red, enlace)
@@ -287,6 +298,7 @@ def confirm_published(tarea: TareaPublicacion, *, enlace: str, acting_user, requ
         audit.record(
             Action.PUBLICATION_PUBLISHED,
             actor=acting_user,
+            actor_username=actor_username,
             entity=tarea,
             metadata={"pieza": str(tarea.pieza_id), "red": tarea.red, "enlace": enlace},
             request=request,
@@ -295,7 +307,14 @@ def confirm_published(tarea: TareaPublicacion, *, enlace: str, acting_user, requ
     return tarea
 
 
-def report_failed(tarea: TareaPublicacion, *, motivo: str, acting_user, request=None) -> TareaPublicacion:
+def report_failed(
+    tarea: TareaPublicacion,
+    *,
+    motivo: str,
+    acting_user,
+    request=None,
+    actor_username: str = "",
+) -> TareaPublicacion:
     if tarea.estado != Estado_T.PENDIENTE:
         raise DomainError(
             "Solo se puede reportar el fallo de una publicacion pendiente.", "invalid_task_state", 409
@@ -310,6 +329,7 @@ def report_failed(tarea: TareaPublicacion, *, motivo: str, acting_user, request=
         audit.record(
             Action.PUBLICATION_FAILED,
             actor=acting_user,
+            actor_username=actor_username,
             entity=tarea,
             metadata={"pieza": str(tarea.pieza_id), "red": tarea.red, "motivo": tarea.motivo},
             request=request,
@@ -342,6 +362,11 @@ def retry(tarea: TareaPublicacion, *, acting_user, request=None) -> TareaPublica
         tarea.motivo = ""
         tarea.atraso_alertado_at = None
         tarea.gestionada_por = acting_user
+        tarea.modo = TareaPublicacion.Modo.MANUAL
+        # Si Meta creo el post, se conserva para no publicar dos veces. Un contenedor fallido se descarta.
+        if not tarea.externo_post_id:
+            tarea.externo_contenedor_id = ""
+            tarea.externo_estado = ""
         tarea.save()
         audit.record(
             Action.PUBLICATION_RETRIED,
@@ -351,7 +376,7 @@ def retry(tarea: TareaPublicacion, *, acting_user, request=None) -> TareaPublica
             request=request,
         )
         _refresh_piece_state(tarea.pieza_id, acting_user)
-    get_publisher(tarea.red).dispatch(tarea)
+    get_publisher(tarea.red, tarea.cuenta).dispatch(tarea)
     return tarea
 
 

@@ -37,6 +37,10 @@ class TareaSerializer(serializers.ModelSerializer):
             "gestionada_por",
             "gestionada_por_username",
             "intentos",
+            "modo",
+            "externo_contenedor_id",
+            "externo_post_id",
+            "externo_estado",
         ]
         read_only_fields = fields
 

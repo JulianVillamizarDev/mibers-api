@@ -1,22 +1,27 @@
-"""Puerto de publicacion por red.
+"""Puerto de publicacion por red (RF17, ADR0007).
 
-Hoy solo existe `ManualPublisher` (publicacion manual asistida), porque publicar en cuentas de
-clientes por la Graph API exige ser Tech Provider de Meta y la agencia aun no lo es. Si algun dia
-se obtiene, basta con anadir un `GraphApiPublisher` con el mismo contrato y elegirlo en `get_publisher`
-sin tocar el resto del dominio (el scheduler, las tareas ni los estados).
+El publicador automatico solo encola un `Job`; la llamada a Meta ocurre en el worker.
+Si faltan credenciales, la cuenta no tiene id externo o el tipo de pieza no esta soportado,
+la tarea vuelve al flujo manual asistido.
 """
 
 from typing import Protocol
 
+from django.conf import settings
+
+from modules.content.models import Tipo
+from modules.core import jobs
+from modules.core.networks import Network
 from modules.notifications import services as notifications
 
 from .models import TareaPublicacion
 
+GRAPH_JOB_KIND = "publishing.graph_publish"
+
 
 class Publisher(Protocol):
     def dispatch(self, tarea: TareaPublicacion) -> None:
-        """Se llama cuando llega la hora de publicar. Debe dejar la tarea lista para completarse:
-        el publicador automatico publicaria aqui; el manual avisa a quien debe hacerlo."""
+        """Deja la tarea lista para completarse (aviso manual o job automatico)."""
 
 
 class ManualPublisher:
@@ -31,5 +36,77 @@ class ManualPublisher:
         )
 
 
-def get_publisher(red: str) -> Publisher:
+def supports(red: str, tipo: str, kinds: list[str]) -> bool:
+    """Tipos que el publicador automatico puede manejar en cada red (§4.4 del plan)."""
+    if red == Network.INSTAGRAM:
+        if tipo == Tipo.POST:
+            return len(kinds) == 1 and kinds[0] in {"image", "video"}
+        if tipo == Tipo.CARRUSEL:
+            return 2 <= len(kinds) <= 10 and all(kind in {"image", "video"} for kind in kinds)
+        if tipo == Tipo.REEL:
+            return len(kinds) == 1 and kinds[0] == "video"
+        if tipo == Tipo.HISTORIA:
+            return len(kinds) == 1 and kinds[0] in {"image", "video"}
+        return False  # PORTADA
+    if red == Network.FACEBOOK:
+        if tipo == Tipo.POST:
+            return len(kinds) == 1 and kinds[0] in {"image", "video"}
+        if tipo == Tipo.CARRUSEL:
+            return 2 <= len(kinds) <= 10 and all(kind == "image" for kind in kinds)
+        if tipo == Tipo.REEL:
+            return len(kinds) == 1 and kinds[0] == "video"
+        return False  # HISTORIA y PORTADA
+    return False
+
+
+def supports_task(tarea: TareaPublicacion) -> bool:
+    return supports(
+        tarea.red,
+        tarea.pieza.tipo,
+        [archivo.kind for archivo in tarea.pieza.archivos.all()],
+    )
+
+
+def _mark(tarea: TareaPublicacion, modo: str, estado: str) -> None:
+    tarea.modo = modo
+    tarea.externo_estado = estado
+    tarea.save(update_fields=["modo", "externo_estado", "updated_at"])
+
+
+def fallback_to_manual(tarea: TareaPublicacion) -> None:
+    """La tarea no se puede automatizar: se avisa al equipo sin cambiar su estado."""
+    _mark(tarea, TareaPublicacion.Modo.MANUAL, "MANUAL")
+    ManualPublisher().dispatch(tarea)
+
+
+def automatic_available(cuenta) -> bool:
+    backend = settings.META_PUBLISHING
+    if backend == "fake":
+        return True
+    return backend == "graph" and bool(settings.META_SYSTEM_USER_TOKEN)
+
+
+class GraphApiPublisher:
+    def dispatch(self, tarea: TareaPublicacion) -> None:
+        if tarea.estado != TareaPublicacion.Estado.PENDIENTE:
+            return
+        if not supports_task(tarea):
+            fallback_to_manual(tarea)
+            return
+        _mark(tarea, TareaPublicacion.Modo.AUTOMATICA, "ENCOLADO")
+        jobs.enqueue(
+            GRAPH_JOB_KIND,
+            {"tarea_id": str(tarea.pk)},
+            dedupe_key=f"graph:{tarea.pk}:inicio",
+        )
+
+
+def get_publisher(red: str, cuenta) -> Publisher:
+    if (
+        automatic_available(cuenta)
+        and cuenta.red == red
+        and cuenta.id_externo
+        and cuenta.estado == cuenta.Estado.VINCULADA
+    ):
+        return GraphApiPublisher()
     return ManualPublisher()

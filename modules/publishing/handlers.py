@@ -8,6 +8,7 @@ from modules.core import jobs
 from modules.notifications.models import EnvioWhatsApp
 from modules.notifications.services import envio_actualizado
 
+from . import jobs as graph_jobs  # noqa: F401 - registra el job de publicacion automatica
 from . import services
 
 TICK_SECONDS = 60

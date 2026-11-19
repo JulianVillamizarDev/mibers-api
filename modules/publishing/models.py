@@ -8,9 +8,9 @@ from modules.core.networks import Network
 class TareaPublicacion(BaseModel):
     """Publicacion de una pieza en UNA red, en la cuenta del cliente (RF17).
 
-    Meta exige ser Tech Provider para publicar en cuentas de terceros, y la agencia no lo es:
-    la publicacion es manual asistida. A la hora programada el sistema crea la tarea y avisa;
-    el personal publica en la red y confirma con el enlace, o reporta el fallo con su motivo.
+    El modo automatico usa la Graph API bajo el modelo de agencia (ADR0007). La publicacion
+    manual asistida se conserva como respaldo cuando faltan credenciales, la cuenta no tiene
+    id externo o el tipo de pieza no esta soportado en esa red.
     """
 
     class Estado(models.TextChoices):
@@ -18,6 +18,10 @@ class TareaPublicacion(BaseModel):
         PUBLICADA = "PUBLICADA", "Publicada"
         FALLIDA = "FALLIDA", "Fallida"
         CANCELADA = "CANCELADA", "Cancelada"
+
+    class Modo(models.TextChoices):
+        AUTOMATICA = "AUTOMATICA", "Automatica"
+        MANUAL = "MANUAL", "Manual"
 
     pieza = models.ForeignKey("content.Pieza", on_delete=models.CASCADE, related_name="tareas")
     red = models.CharField(max_length=12, choices=Network.choices)
@@ -39,6 +43,12 @@ class TareaPublicacion(BaseModel):
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
     intentos = models.PositiveSmallIntegerField(default=0)
+
+    # Estado de la publicacion automatica (diagnostico e idempotencia).
+    modo = models.CharField(max_length=10, choices=Modo.choices, default=Modo.MANUAL)
+    externo_contenedor_id = models.CharField(max_length=255, blank=True)
+    externo_post_id = models.CharField(max_length=255, blank=True)
+    externo_estado = models.CharField(max_length=40, blank=True)
 
     class Meta:
         ordering = ["programada_para", "red"]
