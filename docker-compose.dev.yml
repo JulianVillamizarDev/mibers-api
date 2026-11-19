@@ -33,5 +33,23 @@ services:
       db:
         condition: service_healthy
 
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dev
+    command: python manage.py run_worker --interval 5
+    env_file: .env.example
+    environment:
+      DJANGO_SECRET_KEY: dev-secret-key
+      FIELD_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    volumes:
+      - .:/app
+      - ./media:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
 volumes:
   pgdata:
