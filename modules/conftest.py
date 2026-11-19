@@ -10,6 +10,18 @@ from modules.core.roles import Role
 PASSWORD = "Contrasena-Segura-123"
 
 
+def pytest_collection_modifyitems(config, items):
+    """Las pruebas marcadas `postgres` (trigger, SKIP LOCKED) solo corren contra PostgreSQL."""
+    from django.db import connection
+
+    if connection.vendor == "postgresql":
+        return
+    skip = pytest.mark.skip(reason="requiere PostgreSQL (defina DATABASE_URL)")
+    for item in items:
+        if "postgres" in item.keywords:
+            item.add_marker(skip)
+
+
 def _make_user(username, role, **extra):
     User = get_user_model()
     return User.objects.create_user(username=username, password=PASSWORD, role=role, **extra)
