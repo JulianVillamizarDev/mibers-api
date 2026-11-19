@@ -289,10 +289,7 @@ def test_expirar_o_desvincular_una_cuenta_alerta_al_admin(admin_client, cliente)
     admin_client.patch(f"{url}/{account['id']}", {"estado": "DESVINCULADA"}, format="json")
     tipos = list(Alerta.objects.order_by("created_at").values_list("tipo", flat=True))
     assert tipos == ["CUENTA_EXPIRADA", "CUENTA_DESVINCULADA"]
-    assert (
-        "Instagram de Cafe del Valle" in Alerta.objects.first().mensaje
-        or "Cafe del Valle" in Alerta.objects.last().mensaje
-    )
+    assert all("Instagram de Cafe del Valle" in a.mensaje for a in Alerta.objects.all())
 
 
 def test_editar_datos_de_la_cuenta_sin_cambiar_estado_no_alerta(admin_client, cliente):
