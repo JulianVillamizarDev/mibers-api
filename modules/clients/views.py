@@ -132,5 +132,32 @@ class ContactoDetailView(APIView):
 
 
 # --- Cuentas sociales ----------------------------------------------------------
+class CuentaListCreateView(APIView):
+    def get_permissions(self):
+        # Leer: cualquier usuario interno. Registrar: solo Administrador (RF3, RF7).
+        classes = ADMIN_PERMISSIONS if self.request.method == "POST" else BASE_PERMISSIONS
+        return [permission() for permission in classes]
+
+    def get(self, request, pk):
+        cliente = get_client(pk)
+        return Response(CuentaSocialSerializer(cliente.cuentas.all(), many=True).data)
+
+    def post(self, request, pk):
+        cliente = get_client(pk)
+        data = CuentaSocialCreateSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        cuenta = services.link_account(
+            cliente, acting_user=request.user, request=request, **data.validated_data
+        )
+        return Response(CuentaSocialSerializer(cuenta).data, status=status.HTTP_201_CREATED)
 
 
+class CuentaDetailView(APIView):
+    permission_classes = ADMIN_PERMISSIONS
+
+    def patch(self, request, pk, cuenta_id):
+        cuenta = get_object_or_404(CuentaSocial, pk=cuenta_id, cliente_id=pk)
+        data = CuentaSocialUpdateSerializer(data=request.data, partial=True)
+        data.is_valid(raise_exception=True)
+        services.update_account(cuenta, acting_user=request.user, request=request, **data.validated_data)
+        return Response(CuentaSocialSerializer(cuenta).data)

@@ -165,8 +165,60 @@ def remove_contact(contacto: ContactoWhatsApp, *, acting_user, request=None) -> 
 
 
 # --- Cuentas sociales (RF7): solo Administrador -------------------------------
+def link_account(
+    cliente: Cliente, *, red, handle, url_perfil, id_externo="", acting_user, request=None
+) -> CuentaSocial:
+    try:
+        with transaction.atomic():
+            cuenta = CuentaSocial.objects.create(
+                cliente=cliente, red=red, handle=handle, url_perfil=url_perfil, id_externo=id_externo
+            )
+    except IntegrityError as exc:
+        raise DomainError("El cliente ya tiene una cuenta en esa red.", "duplicate_account") from exc
+    audit.record(
+        Action.NETWORK_LINKED,
+        actor=acting_user,
+        entity=cuenta,
+        metadata={"cliente": str(cliente.pk), "red": red, "handle": handle},
+        request=request,
+    )
+    return cuenta
 
 
+def update_account(
+    cuenta: CuentaSocial,
+    *,
+    acting_user,
+    request=None,
+    actor_username: str = "",
+    **fields,
+) -> CuentaSocial:
+    previous_state = cuenta.estado
+    for name, value in fields.items():
+        setattr(cuenta, name, value)
+    if cuenta.estado != previous_state:
+        cuenta.estado_actualizado_at = timezone.now()
+    cuenta.save()
+    if cuenta.estado != previous_state:
+        audit.record(
+            Action.NETWORK_STATUS_CHANGED,
+            actor=acting_user,
+            actor_username=actor_username,
+            entity=cuenta,
+            metadata={"cliente": str(cuenta.cliente_id), "de": previous_state, "a": cuenta.estado},
+            request=request,
+        )
+        _on_account_status_changed(cuenta, previous_state)
+    else:
+        audit.record(
+            Action.NETWORK_LINKED,
+            actor=acting_user,
+            actor_username=actor_username,
+            entity=cuenta,
+            metadata={"cliente": str(cuenta.cliente_id), "op": "updated", "fields": sorted(fields)},
+            request=request,
+        )
+    return cuenta
 
 
 

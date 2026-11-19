@@ -22,4 +22,10 @@ urlpatterns = [
         views.ContactoDetailView.as_view(),
         name="cliente-contacto",
     ),
+    path("clientes/<uuid:pk>/cuentas", views.CuentaListCreateView.as_view(), name="cliente-cuentas"),
+    path(
+        "clientes/<uuid:pk>/cuentas/<uuid:cuenta_id>",
+        views.CuentaDetailView.as_view(),
+        name="cliente-cuenta",
+    ),
 ]
