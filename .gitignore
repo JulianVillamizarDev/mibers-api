@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+db.sqlite3
+staticfiles/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Archivos subidos: solo se versiona el .gitkeep
+media/*
+!media/.gitkeep
