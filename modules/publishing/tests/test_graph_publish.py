@@ -356,6 +356,7 @@ def test_dispatch_solo_encola_el_job(fake_client, make_task):
     task.refresh_from_db()
     job = job_queue.Job.objects.get(kind=graph_jobs.JOB_KIND)
     assert job.status == "PENDING" and job.payload == {"tarea_id": str(task.pk)}
+    assert job.run_at == task.programada_para
     assert task.modo == "AUTOMATICA" and task.externo_estado == "ENCOLADO"
     assert fake_client.calls == []
 
@@ -423,7 +424,7 @@ def test_error_reintentable_deja_el_job_pendiente(fake_client, make_task):
     _, task = make_task("INSTAGRAM", "POST", ("image",))
     GraphApiPublisher().dispatch(task)
 
-    job_queue.process_once()
+    job_queue.process_once(now=task.programada_para + timedelta(seconds=1))
 
     task.refresh_from_db()
     job = job_queue.Job.objects.get(kind=graph_jobs.JOB_KIND)
@@ -441,7 +442,7 @@ def test_media_no_lista_es_reintentable_en_el_job(fake_client, make_task):
     _, task = make_task("INSTAGRAM", "POST", ("image",))
     GraphApiPublisher().dispatch(task)
 
-    job_queue.process_once()
+    job_queue.process_once(now=task.programada_para + timedelta(seconds=1))
 
     task.refresh_from_db()
     job = job_queue.Job.objects.get(kind=graph_jobs.JOB_KIND)
@@ -593,7 +594,7 @@ def test_reintento_con_post_existente_conciliar_sin_republicar(fake_client, make
     )
 
     services.retry(task, acting_user=staff_user)
-    job_queue.process_once()
+    job_queue.process_once(now=task.programada_para + timedelta(seconds=1))
 
     task.refresh_from_db()
     assert task.estado == "PUBLICADA" and task.externo_contenedor_id == "IGC1"

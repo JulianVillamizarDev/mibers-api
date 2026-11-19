@@ -8,6 +8,7 @@ la tarea vuelve al flujo manual asistido.
 from typing import Protocol
 
 from django.conf import settings
+from django.utils import timezone
 
 from modules.content.models import Tipo
 from modules.core import jobs
@@ -94,9 +95,11 @@ class GraphApiPublisher:
             fallback_to_manual(tarea)
             return
         _mark(tarea, TareaPublicacion.Modo.AUTOMATICA, "ENCOLADO")
+        run_at = tarea.programada_para if tarea.programada_para > timezone.now() else None
         jobs.enqueue(
             GRAPH_JOB_KIND,
             {"tarea_id": str(tarea.pk)},
+            run_at=run_at,
             dedupe_key=f"graph:{tarea.pk}:inicio",
         )
 
