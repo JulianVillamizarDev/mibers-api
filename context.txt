@@ -1,0 +1,226 @@
+
+REQUERIMIENTOS FUNCIONALES 
+
+HU-01: Iniciar y cerrar sesión 
+
+«Como miembro del equipo, quiero iniciar sesión con mi usuario y contraseña, para que nadie que tome el computador o el celular de la empresa vea la información de los clientes.» 
+
+Requerimientos funcionales: 
+
+RF1: El sistema debe permitir al administrador y al personal iniciar y cerrar sesión con usuario y contraseña, sin registro público. 
+
+HU-02: Gestionar cuentas del personal  
+
+Como director, quiero crear, editar y desactivar cuentas del personal y restablecer sus contraseñas, para incorporar o retirar colaboradores sin perder lo que hicieron. 
+
+Requerimientos funcionales: 
+
+RF2: El sistema debe permitir al administrador crear, modificar y desactivar cuentas del personal y restablecer sus contraseñas con una temporal, sin exigir correo; cada usuario debe cambiar la temporal en su primer ingreso y puede cambiar su contraseña validando la actual. 
+
+RF3: El sistema debe manejar dos perfiles: Administrador y Personal. Solo el Administrador aprueba piezas, vincula redes, gestiona cuentas y consulta el historial; el Personal opera el resto, sin diferencias por cargo. 
+
+HU-03: Cambiar mi contraseña  
+
+Como usuario, quiero cambiar mi contraseña, para dejar de usar la temporal que me asignó el director. 
+
+Requerimientos funcionales: 
+
+RF2: El sistema debe permitir al administrador crear, modificar y desactivar cuentas del personal y restablecer sus contraseñas con una temporal, sin exigir correo; cada usuario debe cambiar la temporal en su primer ingreso y puede cambiar su contraseña validando la actual. 
+
+HU-04: Consultar historial de acciones   
+
+Como director, quiero consultar quién hizo cada acción y cuándo, para encontrar el origen de errores como una publicación en la cuenta equivocada. 
+
+Requerimientos funcionales: 
+
+RF4: El sistema debe registrar usuario, acción, fecha y hora de: inicios de sesión, cambios en piezas, aprobaciones, programaciones, resultados de publicación, envíos por WhatsApp, vinculación de redes y gestión de cuentas; solo el administrador puede consultar este historial. 
+
+HU-05: Registrar cliente con plan y contrato   
+
+Como miembro del equipo, quiero registrar un cliente con su plan, fechas de contrato, objetivo y manual de marca, para tener sus datos en un solo lugar y no en un Excel y notas sueltas. 
+
+Requerimientos funcionales: 
+
+RF5: El sistema debe permitir gestionar clientes con nombre, contacto, plan contratado (p. ej. 3 o 5 posts por semana), fechas de contrato, objetivo y estrategia (viralizar, posicionar o vender), redes y manual de marca; listar las «empresas actuales» con próximas publicaciones y pendientes, y desactivar clientes conservando su historial durante un año. 
+
+HU-06: Ver empresas actuales y desactivar cliente  
+
+Como director, quiero ver las empresas actuales con sus próximas publicaciones y pendientes, y desactivar a un cliente que se va, para saber cómo va cada cuenta y conservar su información un año. 
+
+Requerimientos funcionales: 
+
+RF5: El sistema debe permitir gestionar clientes con nombre, contacto, plan contratado (p. ej. 3 o 5 posts por semana), fechas de contrato, objetivo y estrategia (viralizar, posicionar o vender), redes y manual de marca; listar las «empresas actuales» con próximas publicaciones y pendientes, y desactivar clientes conservando su historial durante un año. 
+
+HU-07: Registrar contactos de WhatsApp del cliente  
+
+Como miembro del equipo, quiero registrar los contactos de WhatsApp del cliente, para que el sistema le envíe su contenido sin hacerlo a mano. 
+
+Requerimientos funcionales: 
+
+RF6: El sistema debe permitir registrar uno o más contactos de WhatsApp por cliente (nombre y número) para el envío de contenido. 
+
+HU-08: Vincular Instagram y Facebook del cliente  
+
+Como director, quiero vincular las cuentas de Instagram y Facebook de un cliente con la autorización oficial de Meta, para publicar por él sin guardar sus contraseñas. 
+
+Requerimientos funcionales: 
+
+RF7: El sistema debe permitir al administrador vincular las cuentas de Instagram y Facebook de cada cliente mediante la autorización oficial de Meta, sin guardar contraseñas, y mostrar su estado: vinculada, expirada o desvinculada. 
+
+HU-10: Crear pieza con archivos y ficha  
+
+Como miembro del equipo, quiero crear una pieza con sus archivos y su ficha, para tener contenido, copy, mensaje al cliente y enlaces juntos, como hoy en el Excel del cronograma. 
+
+Requerimientos funcionales: 
+
+RF8: El sistema debe permitir gestionar piezas de tipo post, carrusel, reel, historia y portada, cargando los archivos desde el computador y validando formato, relación de aspecto y duración según la red destino, y permitir adjuntar el archivo editable de cada pieza. 
+
+RF9: El sistema debe guardar en la ficha de cada pieza: cliente, tipo, redes destino, fecha y hora, archivos y copy (obligatorios); hashtags, enlaces, campaña, responsable y mensaje para el cliente (opcionales). 
+
+RF10: El sistema debe manejar el ciclo de estados de la pieza (Borrador, En revisión, Cambios solicitados, Aprobada, Programada, Publicada o Fallida, Compartida) y permitir filtrar por estado. 
+
+HU-11: Definir copy común o por red 
+
+Como personal de Mibers (copywriter), quiero escribir un copy común o uno por red, para poner enlaces en Facebook sin alterar el copy de Instagram. 
+
+Requerimientos funcionales: 
+
+RF11: El sistema debe permitir usar un copy común para las redes elegidas o escribir uno distinto por red. 
+
+HU-12: Revisar y aprobar piezas   
+
+Como director, quiero revisar las piezas y aprobarlas o pedir cambios, para que nada salga sin respetar la línea gráfica del cliente. 
+
+Requerimientos funcionales: 
+
+RF12: El sistema debe permitir al personal enviar piezas a revisión y solo al administrador aprobarlas o solicitar cambios con un comentario; editar los archivos o el copy de una pieza aprobada la devuelve a revisión. 
+
+RF10: El sistema debe manejar el ciclo de estados de la pieza (Borrador, En revisión, Cambios solicitados, Aprobada, Programada, Publicada o Fallida, Compartida) y permitir filtrar por estado. 
+
+HU-14: Programar fecha, hora y redes 
+
+Como personal de Mibers (copywriter), quiero programar fecha, hora y redes de cada pieza, para dejar lista la semana de un cliente en una sola sesión. 
+
+Requerimientos funcionales: 
+
+RF14: El sistema debe permitir programar la fecha y hora de publicación (hora de Colombia) y las redes destino de cada pieza. 
+
+HU-15: Publicar automáticamente en Instagram  
+
+Como personal de Mibers (copywriter), quiero que las piezas aprobadas se publiquen solas en Instagram a su hora, para no dedicar un día completo a programar a mano. 
+
+Requerimientos funcionales: 
+
+RF15: El sistema debe publicar automáticamente las piezas aprobadas a la hora programada, con el copy de cada red; si la pieza no tiene aprobación, debe bloquear la publicación y generar una alerta. 
+
+RF16: El sistema debe integrarse con Instagram y Facebook para la publicación automática; TikTok, LinkedIn y X quedan fuera del alcance. 
+
+HU-16: Publicar automáticamente en Facebook 
+
+Como personal de Mibers (copywriter), quiero que las piezas aprobadas se publiquen solas en la página de Facebook del cliente, para cubrir las dos redes principales sin trabajo manual. 
+
+Requerimientos funcionales: 
+
+RF15: El sistema debe publicar automáticamente las piezas aprobadas a la hora programada, con el copy de cada red; si la pieza no tiene aprobación, debe bloquear la publicación y generar una alerta. 
+
+RF16: El sistema debe integrarse con Instagram y Facebook para la publicación automática; TikTok, LinkedIn y X quedan fuera del alcance. 
+
+HU-18: Ver resultado de publicación y reintentar  
+
+Como director, quiero ver el resultado de cada publicación por red y reintentar las fallidas, para enterarme de un fallo antes que el cliente. 
+
+Requerimientos funcionales: 
+
+RF17: El sistema debe registrar el resultado de cada publicación por red (publicada con su enlace, o fallida con su motivo) y permitir reintentarla. 
+
+HU-19: Compartir la pieza al WhatsApp del cliente 
+
+Como personal de Mibers (copywriter), quiero que el sistema envíe la pieza al WhatsApp del cliente el día de su publicación, para no tener que buscarla y mandarla a mano. 
+
+Requerimientos funcionales: 
+
+RF18: El sistema debe enviar el archivo de la pieza y su mensaje a los contactos de WhatsApp del cliente el día de la publicación, a la hora programada y solo después de confirmarse publicada en al menos una red, registrando si se entregó. 
+
+HU-20: Recibir alertas en mi WhatsApp personal 
+
+Como director, quiero recibir en mi WhatsApp personal las alertas de fallos y bloqueos, para enterarme rápido sin revisar el sistema ni el correo. 
+
+Requerimientos funcionales: 
+
+RF19: El sistema debe enviar al WhatsApp personal del administrador una alerta cuando una publicación falle, se bloquee por falta de aprobación, una cuenta expire o se desvincule, o falle un envío al cliente. 
+
+HU-21: Ver el cronograma de contenido por cliente 
+
+Como director, quiero ver el cronograma semanal y mensual de cada cliente con el estado de cada pieza, para dejar de mantener un Excel por cliente. 
+
+Requerimientos funcionales: 
+
+RF20: El sistema debe mostrar el cronograma de contenido de cada cliente en vista semanal y mensual, con el estado de cada pieza y filtros por red y estado. 
+
+HU-24: Consultar métricas por red y periodo 
+
+Como director, quiero consultar alcance, visualizaciones, interacciones y seguidores por cliente, red y mes, para preparar el informe mensual sin entrar red por red. 
+
+Requerimientos funcionales: 
+
+RF23: El sistema debe mostrar por cliente, red y mes el alcance, las visualizaciones, las interacciones y los seguidores que entregue cada API, sin análisis por horario ni exportación de reportes. 
+
+ 
+
+REQUERIMIENTOS NO FUNCIONALES 
+
+RNF01 (Seguridad (autenticidad)) 
+
+Solo usuarios autenticados acceden; 100 % de pantallas internas exigen sesión; cierre tras 30 min de inactividad; bloqueo de 15 min tras 5 intentos fallidos. 
+
+RNF02 (Seguridad (confidencialidad)) 
+
+Autorizaciones de redes y datos de contacto cifrados en reposo (AES-256); contraseñas con hash Argon2 o bcrypt; TLS 1.2 o superior; ninguna contraseña de redes de clientes almacenada. 
+
+RNF03 (Usabilidad (aprendizaje)) 
+
+Un usuario nuevo crea y programa una pieza en 5 min o menos sin ayuda; la semana de un cliente (5 piezas) se programa en 1 h o menos. 
+
+RNF04 (Compatibilidad y portabilidad) 
+
+Diseño principal para computador desde 1366 px de ancho y responsivo usable desde 360 px; Chrome, Edge y Firefox en sus 2 últimas versiones. 
+
+RNF05 (Flexibilidad (adaptabilidad)) 
+
+Un colaborador nuevo queda operativo en 2 min o menos sin cambios de código; los permisos no dependen del cargo. 
+
+RNF06 (Fiabilidad (madurez)) 
+
+95 % o más de publicaciones y envíos se ejecutan dentro de ±5 min de la hora programada (hora de Colombia). 
+
+RNF07 (Eficiencia de desempeño) 
+
+El 95 % de las pantallas carga en menos de 3 s; se aceptan archivos hasta el tamaño máximo de la red destino. 
+
+RNF08 (Adecuación funcional (corrección)) 
+
+100 % de archivos inválidos rechazados antes de programar. 
+
+RNF09 (Usabilidad (protección contra errores)) 
+
+La programación muestra cliente, cuentas destino y copy por red antes de confirmar; 0 publicaciones fuera de las cuentas del cliente. 
+
+RNF10 (Compatibilidad (interoperabilidad)) 
+
+100 % de integraciones por las APIs oficiales de Meta y WhatsApp, cumpliendo sus políticas; ninguna automatización no oficial. 
+
+RNF11 (Seguridad (responsabilidad)) 
+
+100 % de las acciones de RF4 registradas; ningún usuario puede editar el registro; retención de 12 meses. 
+
+RNF12 (Eficiencia (tiempo de respuesta)) 
+
+Alertas al director entregadas en 5 min o menos tras el evento. 
+
+RNF13 (Legal) 
+
+Cumplir la Ley 1581 de 2012 y el Decreto 1377 de 2013: política de tratamiento de datos publicada y autorización de los titulares. 
+
+RNF14 (Mantenibilidad (capacidad de prueba)) 
+
+Cobertura de pruebas de 60 % o más en programación y publicación. 
