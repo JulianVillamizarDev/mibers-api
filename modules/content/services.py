@@ -77,6 +77,24 @@ def _return_to_review_if_needed(pieza: Pieza, before: dict, *, actor, request, r
 
 
 # --- Ficha (RF9, RF11) ---------------------------------------------------------------
+def _set_networks(pieza: Pieza, redes: list[dict]) -> None:
+    wanted = {}
+    for item in redes:
+        red = item["red"]
+        if (red, pieza.tipo) not in media_rules.RULES:
+            raise DomainError(
+                f"{Network(red).label} no soporta piezas de tipo {pieza.tipo.lower()}.", "unsupported"
+            )
+        wanted[red] = item.get("copy", "")
+    pieza.redes.exclude(red__in=wanted).delete()
+    existing = {r.red: r for r in pieza.redes.all()}
+    for red, text in wanted.items():
+        if red in existing:
+            if existing[red].copy != text:
+                existing[red].copy = text
+                existing[red].save(update_fields=["copy", "updated_at"])
+        else:
+            PiezaRed.objects.create(pieza=pieza, red=red, copy=text)
 
 
 @transaction.atomic

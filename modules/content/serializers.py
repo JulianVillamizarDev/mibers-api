@@ -114,8 +114,39 @@ class PiezaListSerializer(serializers.ModelSerializer):
         return len(obj.archivos.all())
 
 
+class RedInputSerializer(serializers.Serializer):
+    red = serializers.ChoiceField(choices=Network.choices)
+    copy = serializers.CharField(required=False, allow_blank=True, default="")
 
 
+class PiezaWriteSerializer(serializers.Serializer):
+    cliente = serializers.UUIDField(required=False)  # solo al crear
+    titulo = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    tipo = serializers.ChoiceField(choices=Tipo.choices, required=False)
+    programada_para = serializers.DateTimeField(required=False, allow_null=True)
+    copy_comun = serializers.CharField(required=False, allow_blank=True)
+    hashtags = serializers.ListField(child=serializers.CharField(max_length=100), required=False)
+    enlaces = serializers.ListField(child=serializers.URLField(), required=False)
+    campana = serializers.CharField(max_length=150, required=False, allow_blank=True)
+    responsable = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_active=True), required=False, allow_null=True
+    )
+    mensaje_cliente = serializers.CharField(required=False, allow_blank=True)
+    redes = RedInputSerializer(many=True, required=False)
+
+    def validate_hashtags(self, value):
+        tags = []
+        for raw in value:
+            tag = raw.strip().replace(" ", "")
+            if tag:
+                tags.append(tag if tag.startswith("#") else f"#{tag}")
+        return tags
+
+    def validate_redes(self, value):
+        networks = [item["red"] for item in value]
+        if len(networks) != len(set(networks)):
+            raise serializers.ValidationError("No repitas redes.")
+        return value
 
 
 
