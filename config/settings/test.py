@@ -3,7 +3,7 @@ import tempfile
 from .base import *  # noqa: F403
 
 DEBUG = False
-SECRET_KEY = "test-secret-key"
+SECRET_KEY = "test-secret-key-with-at-least-32-bytes-length"
 ALLOWED_HOSTS = ["testserver", "localhost"]
 # Por defecto los tests corren en SQLite; con DATABASE_URL apuntando a Postgres
 # tambien se ejecutan las pruebas especificas de Postgres (trigger, SKIP LOCKED).

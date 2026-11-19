@@ -31,6 +31,7 @@ THIRD_PARTY_APPS = [
 ]
 LOCAL_APPS = [
     "modules.core",
+    "modules.accounts",
 ]
 
 # drf-spectacular necesita PyYAML; se activa solo si esta instalado.
@@ -67,6 +68,13 @@ DATABASES = {"default": env.db("DATABASE_URL", default=f"sqlite:///{BASE_DIR / '
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=60)
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+AUTH_USER_MODEL = "accounts.User"
+
+# --- Sesion (RNF01) ---------------------------------------------------------
+SESSION_IDLE_TIMEOUT_MINUTES = env.int("SESSION_IDLE_TIMEOUT_MINUTES", default=30)
+LOGIN_MAX_FAILED_ATTEMPTS = env.int("LOGIN_MAX_FAILED_ATTEMPTS", default=5)
+LOGIN_LOCKOUT_MINUTES = env.int("LOGIN_LOCKOUT_MINUTES", default=15)
+
 # --- Contrasenas (RNF02: Argon2 primero) ------------------------------------
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.Argon2PasswordHasher",
@@ -100,6 +108,11 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 2 * 1024 * 1024
 
 # --- DRF --------------------------------------------------------------------
 REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": ["modules.accounts.authentication.SessionJWTAuthentication"],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+        "modules.core.permissions.PasswordChangeNotRequired",
+    ],
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
     "DEFAULT_PAGINATION_CLASS": "modules.core.pagination.StandardPagination",
     "PAGE_SIZE": 25,

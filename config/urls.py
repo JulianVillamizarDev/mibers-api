@@ -3,6 +3,7 @@ from django.urls import include, path
 
 urlpatterns = [
     path("", include("modules.core.urls")),
+    path("api/v1/", include("modules.accounts.urls")),
 ]
 
 if settings.HAS_SPECTACULAR:
