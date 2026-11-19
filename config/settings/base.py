@@ -34,6 +34,7 @@ LOCAL_APPS = [
     "modules.accounts",
     "modules.audit",
     "modules.clients",
+    "modules.content",
     "modules.legal",
 ]
 

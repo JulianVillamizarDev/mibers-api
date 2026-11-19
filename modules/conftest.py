@@ -27,6 +27,13 @@ def _make_user(username, role, **extra):
     return User.objects.create_user(username=username, password=PASSWORD, role=role, **extra)
 
 
+@pytest.fixture(autouse=True)
+def isolated_media(settings, tmp_path):
+    """Cada prueba escribe en su propio /media temporal."""
+    settings.MEDIA_ROOT = tmp_path / "media"
+    return settings.MEDIA_ROOT
+
+
 @pytest.fixture
 def admin_user(db):
     return _make_user("director", Role.ADMIN, first_name="Directora", last_name="Mibers")
