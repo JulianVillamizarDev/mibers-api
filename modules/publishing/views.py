@@ -36,10 +36,36 @@ ADMIN = [*APIView.permission_classes, IsAdmin]
 
 
 # --- Programacion (RF14, RNF09) ----------------------------------------------------------------------
+class ProgramacionPreviewView(APIView):
+    """Muestra cliente, cuentas destino y copy por red ANTES de confirmar (RNF09)."""
+
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        return Response(ProgramacionPreviewSerializer(services.schedule_preview(get_piece(pk))).data)
 
 
+class ProgramarView(APIView):
+    permission_classes = STAFF
+
+    def post(self, request, pk):
+        data = ProgramarSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        pieza = services.schedule_piece(
+            get_piece(pk),
+            acting_user=request.user,
+            confirmed=data.validated_data["confirmar"],
+            request=request,
+        )
+        return Response(PiezaSerializer(pieza).data)
 
 
+class CancelarProgramacionView(APIView):
+    permission_classes = STAFF
+
+    def post(self, request, pk):
+        pieza = services.unschedule_piece(get_piece(pk), acting_user=request.user, request=request)
+        return Response(PiezaSerializer(pieza).data)
 
 
 # --- Archivos publicos firmados (Meta) ----------------------------------------------------------------
