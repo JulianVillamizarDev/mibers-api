@@ -229,12 +229,84 @@ def _publish_instagram(tarea: TareaPublicacion, client, waits: int) -> None:
     _finish(tarea, client)
 
 
+def _fb_media_ids(tarea: TareaPublicacion) -> list[str]:
+    return [value for value in tarea.externo_contenedor_id.split(",") if value]
 
 
+def _fb_save_media_ids(tarea: TareaPublicacion, media_ids: list[str]) -> None:
+    tarea.externo_contenedor_id = ",".join(media_ids)
+    tarea.save(update_fields=["externo_contenedor_id", "updated_at"])
 
 
+def _fb_carousel_post(tarea: TareaPublicacion, client, token: str, archivos: list) -> str:
+    media_ids = _fb_media_ids(tarea)
+    if len(media_ids) > len(archivos):
+        raise GraphError("Las fotos guardadas no coinciden con los archivos.", retryable=False)
+
+    _state(tarea, "SUBIENDO")
+    for archivo in archivos[len(media_ids) :]:
+        payload = client.post(
+            f"/{tarea.cuenta.id_externo}/photos",
+            {
+                "url": build_public_media_url(archivo),
+                "caption": "",
+                "published": "false",
+            },
+            token=token,
+        )
+        media_ids.append(_required_id(payload, "foto de Facebook"))
+        _fb_save_media_ids(tarea, media_ids)
+
+    if len(media_ids) != len(archivos):
+        raise GraphError("Meta no subio todas las fotos del carrusel.", retryable=False)
+
+    _state(tarea, "PUBLICANDO")
+    attached = json.dumps([{"media_fbid": media_id} for media_id in media_ids], separators=(",", ":"))
+    payload = client.post(
+        f"/{tarea.cuenta.id_externo}/feed",
+        {"message": tarea.copy_final, "attached_media": attached},
+        token=token,
+    )
+    return _required_id(payload, "publicacion de Facebook")
 
 
+def _publish_facebook(tarea: TareaPublicacion, client, waits: int) -> None:
+    token = page_token(client, tarea.cuenta.id_externo)
+    if tarea.externo_post_id:
+        _finish(tarea, client, token=token)
+        return
+
+    archivos = list(tarea.pieza.archivos.all())
+    tipo = tarea.pieza.tipo
+    if tipo == Tipo.CARRUSEL:
+        post_id = _fb_carousel_post(tarea, client, token, archivos)
+    else:
+        archivo = archivos[0]
+        _state(tarea, "PUBLICANDO")
+        if archivo.kind == "image":
+            payload = client.post(
+                f"/{tarea.cuenta.id_externo}/photos",
+                {
+                    "url": build_public_media_url(archivo),
+                    "caption": tarea.copy_final,
+                    "published": "true",
+                },
+                token=token,
+            )
+            post_id = str(payload.get("post_id") or payload.get("id") or "")
+            if not post_id:
+                raise GraphError("Meta no devolvio el id de la publicacion.", retryable=False)
+        else:
+            payload = client.post(
+                f"/{tarea.cuenta.id_externo}/videos",
+                {"file_url": build_public_media_url(archivo), "description": tarea.copy_final},
+                token=token,
+            )
+            post_id = _required_id(payload, "video de Facebook")
+
+    tarea.externo_post_id = post_id
+    tarea.save(update_fields=["externo_post_id", "updated_at"])
+    _finish(tarea, client, token=token)
 
 
 def run_graph_publish(
