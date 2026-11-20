@@ -388,8 +388,66 @@ def cancel_pending_tasks(pieza: Pieza) -> int:
 
 
 # --- Envio al cliente por WhatsApp (RF18) ---
+def share_with_client(pieza: Pieza) -> list[EnvioWhatsApp]:
+    """Encola el archivo y el mensaje para los contactos AUTORIZADOS del cliente. Se llama al
+    confirmarse la publicacion en al menos una red; sale el dia de la publicacion, a la hora
+    programada (o de inmediato si ya paso)."""
+    already = EnvioWhatsApp.objects.filter(
+        entity_type="content.pieza", entity_id=str(pieza.pk), proposito=EnvioWhatsApp.Proposito.CLIENTE
+    ).exists()
+    if already:
+        return []
+    contacts = list(pieza.cliente.contactos.all())
+    authorized = [c for c in contacts if c.autorizado]  # RNF13: sin autorizacion no se envia nada
+    if not authorized:
+        notifications.send_alert(
+            Alerta.Tipo.ENVIO_CLIENTE_FALLIDO,
+            f"{pieza.cliente.nombre}: no hay contactos de WhatsApp autorizados para enviarle "
+            "la pieza publicada.",
+            entity_type="content.pieza",
+            entity_id=pieza.pk,
+            dedupe_key=f"sin_contactos:{pieza.pk}",
+        )
+        return []
+    files = list(pieza.archivos.all())
+    message = (
+        pieza.mensaje_cliente.strip() or f"Tu {pieza.get_tipo_display().lower()} de hoy ya esta publicado."
+    )
+    run_at = max(pieza.programada_para, timezone.now())
+    queued = []
+    for contact in authorized:
+        for index, archivo in enumerate(files):
+            queued.append(
+                notifications.queue_message(
+                    proposito=EnvioWhatsApp.Proposito.CLIENTE,
+                    destino=contact.numero,
+                    destino_nombre=contact.nombre,
+                    parametros=[message if index == 0 else f"Archivo {index + 1} de {len(files)}"],
+                    media_ruta=archivo.archivo.name,
+                    media_nombre=archivo.nombre_original,
+                    media_kind=archivo.kind,
+                    entity_type="content.pieza",
+                    entity_id=pieza.pk,
+                    contexto={"contacto": str(contact.pk), "archivo": str(archivo.pk)},
+                    run_at=run_at,
+                )
+            )
+    return queued
 
 
+def refresh_shared_state(envio: EnvioWhatsApp) -> None:
+    """Cuando todos los envios al cliente salieron, la pieza pasa a Compartida (RF10, RF18)."""
+    if envio.proposito != EnvioWhatsApp.Proposito.CLIENTE or envio.entity_type != "content.pieza":
+        return
+    envios = EnvioWhatsApp.objects.filter(
+        entity_type="content.pieza", entity_id=envio.entity_id, proposito=EnvioWhatsApp.Proposito.CLIENTE
+    )
+    sent_states = (EnvioWhatsApp.Estado.ENVIADO, EnvioWhatsApp.Estado.ENTREGADO, EnvioWhatsApp.Estado.LEIDO)
+    if envios.exclude(estado__in=sent_states).exists():
+        return
+    pieza = Pieza.objects.filter(pk=envio.entity_id).first()
+    if pieza is not None and pieza.estado == Estado.PUBLICADA:
+        content.change_state(pieza, Estado.COMPARTIDA)
 
 
 # --- Cumplimiento de horario (RNF06) ---
