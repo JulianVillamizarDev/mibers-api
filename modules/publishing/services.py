@@ -122,14 +122,130 @@ def unschedule_piece(pieza: Pieza, *, acting_user, request=None) -> Pieza:
 
 
 # --- Scheduler (RF15, RNF06) ---
+def _block(pieza: Pieza, reason: str, now) -> None:
+    """RF15: una pieza sin aprobacion (o sin condiciones) NO se publica: se bloquea y se alerta."""
+    key = f"bloqueo:{pieza.pk}:{pieza.programada_para.isoformat()}"
+    alerta = notifications.send_alert(
+        Alerta.Tipo.PUBLICACION_BLOQUEADA,
+        f"{pieza.cliente.nombre} - {pieza.get_tipo_display()} del {_fmt(pieza.programada_para)}: {reason}",
+        entity_type="content.pieza",
+        entity_id=pieza.pk,
+        dedupe_key=key,
+    )
+    if alerta is not None:  # solo la primera vez
+        audit.record(
+            Action.PUBLICATION_BLOCKED,
+            actor_username="sistema",
+            entity=pieza,
+            metadata={"estado": pieza.estado, "motivo": reason},
+        )
 
 
+def _generate_tasks(pieza: Pieza, now) -> list[TareaPublicacion]:
+    accounts = {c.red: c for c in CuentaSocial.objects.filter(cliente_id=pieza.cliente_id)}
+    tasks = []
+    for red in pieza.network_list():
+        account = accounts[red]
+        assert account.cliente_id == pieza.cliente_id  # RNF09
+        task, _ = TareaPublicacion.objects.update_or_create(
+            pieza=pieza,
+            red=red,
+            defaults={
+                "cuenta": account,
+                "cuenta_handle": account.handle,
+                "cuenta_url": account.url_perfil,
+                "estado": Estado_T.PENDIENTE,
+                "copy_final": pieza.copy_final(red),
+                "programada_para": pieza.programada_para,
+                "avisada_at": now,
+                "atraso_alertado_at": None,
+                "enlace": "",
+                "motivo": "",
+                "publicada_at": None,
+                "modo": TareaPublicacion.Modo.MANUAL,
+                "externo_contenedor_id": "",
+                "externo_post_id": "",
+                "externo_estado": "",
+            },
+        )
+        tasks.append(task)
+    return tasks
 
 
+def process_due_piece(pieza: Pieza, now) -> None:
+    pieza = content.load_piece(pieza.pk)
+    if pieza.estado != Estado.PROGRAMADA:
+        names = {
+            Estado.APROBADA: "esta aprobada pero no fue programada",
+            Estado.BORRADOR: "sigue en borrador",
+            Estado.EN_REVISION: "no fue aprobada (sigue en revision)",
+            Estado.CAMBIOS_SOLICITADOS: "no fue aprobada (tiene cambios solicitados)",
+        }
+        _block(pieza, f"No se publico: {names.get(pieza.estado, 'no esta lista')}.", now)
+        return
+    problems = content.readiness_problems(pieza) + _account_problems(pieza)
+    if problems:
+        _block(pieza, "No se puede publicar: " + " ".join(problems), now)
+        return
+    with transaction.atomic():
+        tasks = _generate_tasks(pieza, now)
+        audit.record(
+            Action.PUBLICATION_DUE,
+            actor_username="sistema",
+            entity=pieza,
+            metadata={
+                "redes": [t.red for t in tasks],
+                "retraso_s": int((now - pieza.programada_para).total_seconds()),
+            },
+        )
+    for task in tasks:
+        get_publisher(task.red, task.cuenta).dispatch(task)
 
 
+def run_tick(now=None) -> dict:
+    """Se ejecuta cada minuto por el worker. Crea las tareas de publicacion de las piezas
+    programadas cuya hora llego, bloquea las no aprobadas y alerta de las tareas atrasadas."""
+    now = now or timezone.now()
+    active_tasks = TareaPublicacion.objects.filter(pieza=OuterRef("pk")).exclude(estado=Estado_T.CANCELADA)
+    due = (
+        Pieza.objects.filter(
+            programada_para__lte=now, programada_para__gte=now - LOOKBACK, estado__in=NOT_YET_PUBLISHED
+        )
+        .annotate(tiene_tareas=Exists(active_tasks))
+        .filter(tiene_tareas=False)
+        .select_related("cliente")
+    )
+    processed = 0
+    for pieza in due:
+        try:
+            process_due_piece(pieza, now)
+            processed += 1
+        except Exception:  # noqa: BLE001 - una pieza con problemas no frena a las demas
+            logger.exception("Fallo el scheduler con la pieza %s", pieza.pk)
+    return {"piezas": processed, "atrasadas": alert_overdue(now)}
 
 
+def alert_overdue(now=None) -> int:
+    """Tarea pendiente sin confirmar pasado el plazo: se avisa una sola vez al administrador."""
+    now = now or timezone.now()
+    limit = now - timedelta(minutes=settings.PUBLICATION_OVERDUE_MINUTES)
+    overdue = TareaPublicacion.objects.filter(
+        estado=Estado_T.PENDIENTE, programada_para__lte=limit, atraso_alertado_at__isnull=True
+    ).select_related("pieza__cliente")
+    count = 0
+    for task in overdue:
+        notifications.send_alert(
+            Alerta.Tipo.PUBLICACION_ATRASADA,
+            f"{task.pieza.cliente.nombre} - {task.get_red_display()} "
+            f"(programada {_fmt(task.programada_para)}) sigue sin publicarse.",
+            entity_type="publishing.tareapublicacion",
+            entity_id=task.pk,
+            dedupe_key=f"atraso:{task.pk}:{task.intentos}",
+        )
+        task.atraso_alertado_at = now
+        task.save(update_fields=["atraso_alertado_at", "updated_at"])
+        count += 1
+    return count
 
 
 # --- Resultado por red y reintento (RF17) ---

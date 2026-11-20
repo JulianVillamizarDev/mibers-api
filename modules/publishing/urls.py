@@ -13,4 +13,9 @@ urlpatterns = [
         views.CancelarProgramacionView.as_view(),
         name="cancelar-programacion",
     ),
+    path(
+        "piezas/<uuid:pk>/publicaciones", views.PiezaPublicacionesView.as_view(), name="pieza-publicaciones"
+    ),
+    path("publicaciones", views.TareaListView.as_view(), name="publicaciones"),
+    path("publicaciones/<uuid:pk>", views.TareaDetailView.as_view(), name="publicacion"),
 ]

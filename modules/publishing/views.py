@@ -31,8 +31,12 @@ STAFF = [*APIView.permission_classes, IsStaffOrAdmin]
 ADMIN = [*APIView.permission_classes, IsAdmin]
 
 
+def tasks_queryset():
+    return TareaPublicacion.objects.select_related("pieza__cliente", "gestionada_por")
 
 
+def get_task(pk) -> TareaPublicacion:
+    return get_object_or_404(tasks_queryset(), pk=pk)
 
 
 # --- Programacion (RF14, RNF09) ----------------------------------------------------------------------
@@ -100,10 +104,44 @@ class PublicMediaView(APIView):
 
 
 # --- Publicaciones por red (RF17) ---------------------------------------------------------------------
+class TareaListView(APIView):
+    """Bandeja de publicaciones. `?estado=PENDIENTE` es la lista de lo que hay que publicar."""
+
+    permission_classes = STAFF
+
+    def get(self, request):
+        params = request.query_params
+        queryset = tasks_queryset()
+        if params.get("estado"):
+            queryset = queryset.filter(estado__in=params["estado"].split(","))
+        if params.get("cliente"):
+            queryset = queryset.filter(pieza__cliente_id=params["cliente"])
+        if params.get("red") in Network.values:
+            queryset = queryset.filter(red=params["red"])
+        if params.get("desde"):
+            queryset = queryset.filter(programada_para__gte=bogota_day_bounds(parse_day(params["desde"]))[0])
+        if params.get("hasta"):
+            queryset = queryset.filter(programada_para__lt=bogota_day_bounds(parse_day(params["hasta"]))[1])
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(TareaSerializer(page, many=True).data)
 
 
+class TareaDetailView(APIView):
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        return Response(TareaSerializer(get_task(pk)).data)
 
 
+class PiezaPublicacionesView(APIView):
+    """Resultado de la publicacion por red de una pieza."""
+
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        pieza = get_object_or_404(Pieza, pk=pk)
+        return Response(TareaSerializer(tasks_queryset().filter(pieza=pieza), many=True).data)
 
 
 # --- Registro de envios al cliente (HU-19, RF18) -----------------------------------------------------
