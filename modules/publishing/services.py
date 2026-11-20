@@ -249,14 +249,135 @@ def alert_overdue(now=None) -> int:
 
 
 # --- Resultado por red y reintento (RF17) ---
+def _validate_link(red: str, url: str) -> None:
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    allowed = ALLOWED_LINK_HOSTS[red]
+    if parsed.scheme != "https" or not any(host == d or host.endswith("." + d) for d in allowed):
+        raise DomainError(
+            f"El enlace debe ser una URL https de {Network(red).label} ({', '.join(allowed)}).",
+            "invalid_link",
+        )
 
 
+def _refresh_piece_state(pieza_id, actor) -> Pieza:
+    pieza = content.load_piece(pieza_id)
+    tasks = list(pieza.tareas.exclude(estado=Estado_T.CANCELADA))
+    published = any(t.estado == Estado_T.PUBLICADA for t in tasks)
+    pending = any(t.estado == Estado_T.PENDIENTE for t in tasks)
+    if published:
+        if pieza.estado in (Estado.PROGRAMADA, Estado.FALLIDA):
+            content.change_state(pieza, Estado.PUBLICADA, actor=actor)
+            share_with_client(pieza)
+    elif tasks and not pending and all(t.estado == Estado_T.FALLIDA for t in tasks):
+        if pieza.estado == Estado.PROGRAMADA:
+            content.change_state(pieza, Estado.FALLIDA, actor=actor)
+    elif pending and pieza.estado == Estado.FALLIDA:
+        content.change_state(pieza, Estado.PROGRAMADA, actor=actor)
+    return pieza
 
 
+def confirm_published(
+    tarea: TareaPublicacion,
+    *,
+    enlace: str,
+    acting_user,
+    request=None,
+    actor_username: str = "",
+) -> TareaPublicacion:
+    if tarea.estado not in (Estado_T.PENDIENTE, Estado_T.FALLIDA):
+        raise DomainError("Esta publicacion no esta pendiente.", "invalid_task_state", 409)
+    _validate_link(tarea.red, enlace)
+    with transaction.atomic():
+        tarea.estado = Estado_T.PUBLICADA
+        tarea.enlace = enlace
+        tarea.motivo = ""
+        tarea.publicada_at = timezone.now()
+        tarea.gestionada_por = acting_user
+        tarea.save()
+        audit.record(
+            Action.PUBLICATION_PUBLISHED,
+            actor=acting_user,
+            actor_username=actor_username,
+            entity=tarea,
+            metadata={"pieza": str(tarea.pieza_id), "red": tarea.red, "enlace": enlace},
+            request=request,
+        )
+        _refresh_piece_state(tarea.pieza_id, acting_user)
+    return tarea
 
 
+def report_failed(
+    tarea: TareaPublicacion,
+    *,
+    motivo: str,
+    acting_user,
+    request=None,
+    actor_username: str = "",
+) -> TareaPublicacion:
+    if tarea.estado != Estado_T.PENDIENTE:
+        raise DomainError(
+            "Solo se puede reportar el fallo de una publicacion pendiente.", "invalid_task_state", 409
+        )
+    if not motivo or not motivo.strip():
+        raise DomainError("Indica el motivo del fallo.", "reason_required")
+    with transaction.atomic():
+        tarea.estado = Estado_T.FALLIDA
+        tarea.motivo = motivo.strip()
+        tarea.gestionada_por = acting_user
+        tarea.save()
+        audit.record(
+            Action.PUBLICATION_FAILED,
+            actor=acting_user,
+            actor_username=actor_username,
+            entity=tarea,
+            metadata={"pieza": str(tarea.pieza_id), "red": tarea.red, "motivo": tarea.motivo},
+            request=request,
+        )
+        _refresh_piece_state(tarea.pieza_id, acting_user)
+    pieza = tarea.pieza
+    notifications.send_alert(
+        Alerta.Tipo.PUBLICACION_FALLIDA,
+        f"{pieza.cliente.nombre} - {tarea.get_red_display()}: {tarea.motivo}",
+        entity_type="publishing.tareapublicacion",
+        entity_id=tarea.pk,
+        dedupe_key=f"fallo:{tarea.pk}:{tarea.intentos}",
+    )
+    return tarea
 
 
+def retry(tarea: TareaPublicacion, *, acting_user, request=None) -> TareaPublicacion:
+    if tarea.estado != Estado_T.FALLIDA:
+        raise DomainError("Solo se pueden reintentar las publicaciones fallidas.", "invalid_task_state", 409)
+    account = tarea.cuenta
+    if account.estado != CuentaSocial.Estado.VINCULADA:
+        raise DomainError(
+            f"La cuenta {account.handle} esta {account.get_estado_display().lower()}: "
+            "corrige su estado primero.",
+            "account_not_linked",
+        )
+    with transaction.atomic():
+        tarea.estado = Estado_T.PENDIENTE
+        tarea.intentos += 1
+        tarea.motivo = ""
+        tarea.atraso_alertado_at = None
+        tarea.gestionada_por = acting_user
+        tarea.modo = TareaPublicacion.Modo.MANUAL
+        # Si Meta creo el post, se conserva para no publicar dos veces. Un contenedor fallido se descarta.
+        if not tarea.externo_post_id:
+            tarea.externo_contenedor_id = ""
+            tarea.externo_estado = ""
+        tarea.save()
+        audit.record(
+            Action.PUBLICATION_RETRIED,
+            actor=acting_user,
+            entity=tarea,
+            metadata={"pieza": str(tarea.pieza_id), "red": tarea.red, "intento": tarea.intentos},
+            request=request,
+        )
+        _refresh_piece_state(tarea.pieza_id, acting_user)
+    get_publisher(tarea.red, tarea.cuenta).dispatch(tarea)
+    return tarea
 
 
 def cancel_pending_tasks(pieza: Pieza) -> int:

@@ -149,9 +149,35 @@ class PiezaPublicacionesView(APIView):
 
 
 
+class ConfirmarView(APIView):
+    permission_classes = STAFF
+
+    def post(self, request, pk):
+        data = ConfirmarSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        tarea = services.confirm_published(
+            get_task(pk), enlace=data.validated_data["enlace"], acting_user=request.user, request=request
+        )
+        return Response(TareaSerializer(tarea).data)
 
 
+class FallarView(APIView):
+    permission_classes = STAFF
+
+    def post(self, request, pk):
+        data = FallarSerializer(data=request.data)
+        data.is_valid(raise_exception=True)
+        tarea = services.report_failed(
+            get_task(pk), motivo=data.validated_data["motivo"], acting_user=request.user, request=request
+        )
+        return Response(TareaSerializer(tarea).data)
 
 
+class ReintentarView(APIView):
+    permission_classes = STAFF
+
+    def post(self, request, pk):
+        tarea = services.retry(get_task(pk), acting_user=request.user, request=request)
+        return Response(TareaSerializer(tarea).data)
 
 

@@ -1,5 +1,3 @@
-import re
-
 from rest_framework import serializers
 
 from modules.clients.serializers import CuentaSocialSerializer
@@ -47,15 +45,29 @@ class TareaSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class RedPreviewSerializer(serializers.Serializer):
+    red = serializers.CharField()
+    cuenta = CuentaSocialSerializer(allow_null=True)
+    copy_final = serializers.CharField()
 
 
+class ProgramacionPreviewSerializer(serializers.Serializer):
+    pieza = PiezaListSerializer()
+    cliente = serializers.CharField()
+    programada_para = serializers.DateTimeField(allow_null=True)
+    redes = RedPreviewSerializer(many=True)
+    archivos = serializers.ListField(child=serializers.CharField())
+    problemas = serializers.ListField(child=serializers.CharField())
+    puede_confirmar = serializers.BooleanField()
 
 
+class ProgramarSerializer(serializers.Serializer):
+    confirmar = serializers.BooleanField(default=False)
 
 
+class ConfirmarSerializer(serializers.Serializer):
+    enlace = serializers.URLField(max_length=500)
 
 
-
-
-
-
+class FallarSerializer(serializers.Serializer):
+    motivo = serializers.CharField(allow_blank=True, default="")

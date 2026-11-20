@@ -18,4 +18,7 @@ urlpatterns = [
     ),
     path("publicaciones", views.TareaListView.as_view(), name="publicaciones"),
     path("publicaciones/<uuid:pk>", views.TareaDetailView.as_view(), name="publicacion"),
+    path("publicaciones/<uuid:pk>/confirmar", views.ConfirmarView.as_view(), name="publicacion-confirmar"),
+    path("publicaciones/<uuid:pk>/fallar", views.FallarView.as_view(), name="publicacion-fallar"),
+    path("publicaciones/<uuid:pk>/reintentar", views.ReintentarView.as_view(), name="publicacion-reintentar"),
 ]
