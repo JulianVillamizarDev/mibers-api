@@ -22,8 +22,30 @@ def week_bounds(day: date) -> tuple[date, date]:
     return start, start + timedelta(days=7)
 
 
+def month_bounds(day: date) -> tuple[date, date]:
+    start = day.replace(day=1)
+    end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+    return start, end
 
 
+def client_schedule(cliente: Cliente, *, view: str, day: date, red=None, estado=None) -> dict:
+    """Cronograma semanal o mensual de un cliente, agrupado por dia de Colombia (RF20)."""
+    start, end = week_bounds(day) if view == "semana" else month_bounds(day)
+    low, high = bogota_day_bounds(start)[0], bogota_day_bounds(end)[0]
+    queryset = pieces_queryset().filter(cliente=cliente, programada_para__gte=low, programada_para__lt=high)
+    if red:
+        queryset = queryset.filter(redes__red=red).distinct()
+    if estado:
+        queryset = queryset.filter(estado=estado)
+    by_day: dict[date, list[Pieza]] = defaultdict(list)
+    for pieza in queryset.order_by("programada_para"):
+        by_day[to_bogota(pieza.programada_para).date()].append(pieza)
+    days = []
+    cursor = start
+    while cursor < end:
+        days.append({"fecha": cursor, "piezas": by_day.get(cursor, [])})
+        cursor += timedelta(days=1)
+    return {"vista": view, "desde": start, "hasta": end - timedelta(days=1), "dias": days}
 
 
 def current_companies(*, upcoming_limit: int = 5, now=None) -> list[dict]:

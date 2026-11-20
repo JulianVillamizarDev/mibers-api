@@ -214,6 +214,29 @@ class RevisionesView(APIView):
 
 
 # --- Cronograma y empresas actuales (RF20, RF5) -----------------------------------------------------------
+class CronogramaView(APIView):
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        cliente = get_object_or_404(Cliente, pk=pk)
+        params = request.query_params
+        view = params.get("vista", "semana")
+        if view not in ("semana", "mes"):
+            raise DomainError("vista debe ser 'semana' o 'mes'.", "invalid_view")
+        if params.get("red") and params["red"] not in Network.values:
+            raise DomainError("Red no valida.", "invalid_network")
+        if params.get("estado") and params["estado"] not in Estado.values:
+            raise DomainError("Estado no valido.", "invalid_state")
+        schedule = selectors.client_schedule(
+            cliente,
+            view=view,
+            day=parse_day(params.get("fecha")),
+            red=params.get("red"),
+            estado=params.get("estado"),
+        )
+        for day in schedule["dias"]:
+            day["piezas"] = PiezaListSerializer(day["piezas"], many=True).data
+        return Response(schedule)
 
 
 class EmpresasActualesView(APIView):
