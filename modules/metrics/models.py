@@ -6,12 +6,16 @@ from modules.core.networks import Network
 
 
 class MetricaMensual(BaseModel):
-    """Alcance, visualizaciones, interacciones y seguidores de un cliente en una red y un mes (RF23).
+    """Alcance, visualizaciones, interacciones y seguidores por cliente, red y mes (RF23).
 
-    Sin ser Tech Provider no se pueden leer las metricas de las cuentas de los clientes por la API
-    de Meta, asi que el equipo las registra a partir de Meta Business Suite. Sin analisis por
-    horario ni exportacion de reportes (fuera de alcance). Un valor vacio significa "no disponible".
+    Las metricas se sincronizan desde Meta cuando hay token; la carga manual del equipo se
+    conserva como respaldo y no se sobrescribe salvo que se fuerce. Sin analisis por horario
+    ni exportacion de reportes (fuera de alcance). Un valor vacio significa "no disponible".
     """
+
+    class Origen(models.TextChoices):
+        MANUAL = "MANUAL", "Manual"
+        API = "API", "Graph API"
 
     cliente = models.ForeignKey("clients.Cliente", on_delete=models.CASCADE, related_name="metricas")
     red = models.CharField(max_length=12, choices=Network.choices)
@@ -20,6 +24,8 @@ class MetricaMensual(BaseModel):
     visualizaciones = models.PositiveBigIntegerField(null=True, blank=True)
     interacciones = models.PositiveBigIntegerField(null=True, blank=True)
     seguidores = models.PositiveBigIntegerField(null=True, blank=True)
+    origen = models.CharField(max_length=8, choices=Origen.choices, default=Origen.MANUAL)
+    sincronizado_at = models.DateTimeField(null=True, blank=True)
     registrado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )

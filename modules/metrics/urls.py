@@ -5,4 +5,9 @@ from . import views
 urlpatterns = [
     path("metricas", views.MetricaListView.as_view(), name="metricas"),
     path("clientes/<uuid:pk>/metricas", views.ClienteMetricasView.as_view(), name="cliente-metricas"),
+    path(
+        "clientes/<uuid:pk>/metricas/sincronizar",
+        views.ClienteMetricasSyncView.as_view(),
+        name="cliente-metricas-sincronizar",
+    ),
 ]
