@@ -451,3 +451,19 @@ def refresh_shared_state(envio: EnvioWhatsApp) -> None:
 
 
 # --- Cumplimiento de horario (RNF06) ---
+def punctuality(since, until) -> dict:
+    """Porcentaje de tareas avisadas dentro de +-5 min de la hora programada (meta: 95 %)."""
+    tasks = TareaPublicacion.objects.filter(programada_para__gte=since, programada_para__lt=until).exclude(
+        avisada_at__isnull=True
+    )
+    total = within = 0
+    for task in tasks:
+        total += 1
+        if abs(task.avisada_at - task.programada_para) <= timedelta(minutes=5):
+            within += 1
+    return {
+        "total": total,
+        "dentro_de_5_min": within,
+        "porcentaje": round(100 * within / total, 1) if total else None,
+        "meta": 95,
+    }

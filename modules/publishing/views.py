@@ -181,3 +181,17 @@ class ReintentarView(APIView):
         return Response(TareaSerializer(tarea).data)
 
 
+class CumplimientoView(APIView):
+    """RNF06: porcentaje de avisos dentro de +-5 min de la hora programada."""
+
+    permission_classes = ADMIN
+
+    def get(self, request):
+        params = request.query_params
+        until = bogota_day_bounds(parse_day(params["hasta"]))[1] if params.get("hasta") else timezone.now()
+        since = (
+            bogota_day_bounds(parse_day(params["desde"]))[0]
+            if params.get("desde")
+            else until - timedelta(days=30)
+        )
+        return Response(services.punctuality(since, until))
