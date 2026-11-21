@@ -28,12 +28,14 @@ def load_piece(pk) -> Pieza:
 
 # --- Estados -----------------------------------------------------------------
 def change_state(pieza: Pieza, target: str, *, actor=None) -> Pieza:
-    """Unica puerta para cambiar el estado: valida la transicion y avisa a otros modulos."""
-    state_machine.ensure_transition(pieza.estado, target)
-    old = pieza.estado
-    pieza.estado = target
-    pieza.save(update_fields=["estado", "updated_at"])
-    piece_state_changed.send(sender=Pieza, pieza=pieza, old_state=old, new_state=target, actor=actor)
+    """Unica puerta para cambiar el estado. Valida contra el estado REAL en la base de datos
+    (con bloqueo de fila), no contra la instancia recibida, que puede estar desactualizada."""
+    with transaction.atomic():
+        current = Pieza.objects.select_for_update().only("estado").get(pk=pieza.pk).estado
+        state_machine.ensure_transition(current, target)
+        pieza.estado = target
+        pieza.save(update_fields=["estado", "updated_at"])
+    piece_state_changed.send(sender=Pieza, pieza=pieza, old_state=current, new_state=target, actor=actor)
     return pieza
 
 
@@ -112,6 +114,7 @@ def create_piece(*, cliente, tipo, acting_user, request=None, redes=None, **fiel
 
 @transaction.atomic
 def update_piece(pieza: Pieza, *, acting_user, request=None, redes=None, **fields) -> Pieza:
+    pieza = load_piece(pieza.pk)
     _ensure_editable(pieza)
     if "tipo" in fields and fields["tipo"] != pieza.tipo:
         if pieza.estado not in (Estado.BORRADOR, Estado.CAMBIOS_SOLICITADOS):
@@ -137,6 +140,7 @@ def update_piece(pieza: Pieza, *, acting_user, request=None, redes=None, **field
 @transaction.atomic
 def delete_piece(pieza: Pieza, *, acting_user, request=None) -> None:
     """Solo se eliminan borradores; el resto conserva su historial."""
+    pieza = load_piece(pieza.pk)
     if pieza.estado != Estado.BORRADOR:
         raise DomainError("Solo se pueden eliminar piezas en borrador.", "not_draft", 409)
     piece_id = str(pieza.pk)
@@ -247,6 +251,7 @@ def reorder_files(pieza: Pieza, ordered_ids: list, *, acting_user, request=None)
 
 def set_editable_file(pieza: Pieza, uploaded, *, acting_user, request=None) -> Pieza:
     """Archivo editable de la pieza (PSD, AI, Figma...). No altera el contenido aprobado (RF8)."""
+    pieza = load_piece(pieza.pk)
     _ensure_editable(pieza)
     if Path(uploaded.name).suffix.lower() not in EDITABLE_EXTENSIONS:
         raise DomainError("Formato no permitido para el archivo editable.", "invalid_editable")
@@ -302,6 +307,7 @@ def _require_admin(actor) -> None:
 
 
 def submit_for_review(pieza: Pieza, *, acting_user, request=None) -> Pieza:
+    pieza = load_piece(pieza.pk)
     if pieza.estado not in (Estado.BORRADOR, Estado.CAMBIOS_SOLICITADOS):
         state_machine.ensure_transition(pieza.estado, Estado.EN_REVISION)  # lanza el error adecuado
     problems = readiness_problems(pieza)
@@ -318,6 +324,7 @@ def submit_for_review(pieza: Pieza, *, acting_user, request=None) -> Pieza:
 
 def approve(pieza: Pieza, *, acting_user, comentario="", request=None) -> Pieza:
     _require_admin(acting_user)
+    pieza = load_piece(pieza.pk)
     state_machine.ensure_transition(pieza.estado, Estado.APROBADA)
     problems = readiness_problems(pieza)
     if problems:
@@ -336,6 +343,7 @@ def approve(pieza: Pieza, *, acting_user, comentario="", request=None) -> Pieza:
 
 def request_changes(pieza: Pieza, *, acting_user, comentario: str, request=None) -> Pieza:
     _require_admin(acting_user)
+    pieza = load_piece(pieza.pk)
     if not comentario or not comentario.strip():
         raise DomainError("Indica que cambios se necesitan.", "comment_required")
     with transaction.atomic():
