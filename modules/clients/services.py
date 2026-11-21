@@ -221,6 +221,21 @@ def update_account(
     return cuenta
 
 
+def _on_account_status_changed(cuenta: CuentaSocial, previous_state: str) -> None:
+    """Avisa al administrador cuando una cuenta expira o se desvincula (RF19)."""
+    tipo = {
+        CuentaSocial.Estado.EXPIRADA: Alerta.Tipo.CUENTA_EXPIRADA,
+        CuentaSocial.Estado.DESVINCULADA: Alerta.Tipo.CUENTA_DESVINCULADA,
+    }.get(cuenta.estado)
+    if tipo is None:
+        return
+    notifications.send_alert(
+        tipo,
+        f"{cuenta.get_red_display()} de {cuenta.cliente.nombre} ({cuenta.handle}).",
+        entity_type="clients.cuentasocial",
+        entity_id=cuenta.pk,
+        dedupe_key=f"cuenta:{cuenta.pk}:{cuenta.estado}:{cuenta.estado_actualizado_at.isoformat()}",
+    )
 
 
 # --- Verificacion de cuentas contra Meta (HU-08, ADR0008) -----------------------------------------

@@ -17,10 +17,34 @@ from . import services
 from .models import Alerta
 
 
+class AlertaSerializer(serializers.ModelSerializer):
+    tipo_label = serializers.CharField(source="get_tipo_display", read_only=True)
+
+    class Meta:
+        model = Alerta
+        fields = ["id", "tipo", "tipo_label", "mensaje", "entity_type", "entity_id", "leida_at", "created_at"]
+        read_only_fields = fields
 
 
+class AlertaListView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def get(self, request):
+        queryset = Alerta.objects.all()
+        leida = request.query_params.get("leida")
+        if leida in ("true", "false"):
+            queryset = queryset.filter(leida_at__isnull=leida == "false")
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        return paginator.get_paginated_response(AlertaSerializer(page, many=True).data)
 
 
+class AlertaReadView(APIView):
+    permission_classes = [*APIView.permission_classes, IsAdmin]
+
+    def post(self, request, pk):
+        alerta = services.mark_alert_read(get_object_or_404(Alerta, pk=pk))
+        return Response(AlertaSerializer(alerta).data)
 
 
 class WhatsAppWebhookView(APIView):

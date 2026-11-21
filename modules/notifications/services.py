@@ -161,7 +161,60 @@ def apply_status_update(wa_message_id: str, status: str, error: str = "") -> boo
 
 
 # --- Alertas al administrador (RF19, RNF12) -------------------------------------------------------------
+def send_alert(tipo, mensaje, *, entity_type="", entity_id="", dedupe_key=None) -> Alerta | None:
+    """Registra la alerta y la envia por WhatsApp a cada administrador activo con numero.
+    Con `dedupe_key` repetida no se crea otra (devuelve None)."""
+    if dedupe_key and Alerta.objects.filter(dedupe_key=dedupe_key).exists():
+        return None
+    alerta = Alerta.objects.create(
+        tipo=tipo,
+        mensaje=mensaje,
+        entity_type=entity_type,
+        entity_id=str(entity_id or ""),
+        dedupe_key=dedupe_key,
+    )
+    admins = get_user_model().objects.filter(role=Role.ADMIN, is_active=True)
+    sent_to = 0
+    for admin in admins:
+        if not admin.whatsapp_number:
+            continue
+        queue_message(
+            proposito=EnvioWhatsApp.Proposito.ALERTA_ADMIN,
+            destino=admin.whatsapp_number,
+            destino_nombre=admin.display_name,
+            plantilla=settings.WHATSAPP_TEMPLATE_ALERT,
+            parametros=[f"{Alerta.Tipo(tipo).label}: {mensaje}"],
+            entity_type=entity_type,
+            entity_id=entity_id,
+            contexto={"alerta": str(alerta.pk)},
+        )
+        sent_to += 1
+    audit.record(
+        Action.ALERT_SENT,
+        actor_username="sistema",
+        entity=alerta,
+        metadata={"tipo": tipo, "enviada_a": sent_to},
+    )
+    return alerta
 
 
+def send_staff_reminder(user, mensaje, *, entity_type="", entity_id="") -> EnvioWhatsApp | None:
+    """Recordatorio por WhatsApp al responsable de la pieza (si tiene numero configurado)."""
+    if not user or not user.whatsapp_number:
+        return None
+    return queue_message(
+        proposito=EnvioWhatsApp.Proposito.RECORDATORIO,
+        destino=user.whatsapp_number,
+        destino_nombre=user.display_name,
+        plantilla=settings.WHATSAPP_TEMPLATE_REMINDER,
+        parametros=[mensaje],
+        entity_type=entity_type,
+        entity_id=entity_id,
+    )
 
 
+def mark_alert_read(alerta: Alerta) -> Alerta:
+    if alerta.leida_at is None:
+        alerta.leida_at = timezone.now()
+        alerta.save(update_fields=["leida_at", "updated_at"])
+    return alerta
