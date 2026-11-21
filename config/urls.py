@@ -3,6 +3,14 @@ from django.urls import include, path
 
 urlpatterns = [
     path("", include("modules.core.urls")),
+    path("api/v1/", include("modules.accounts.urls")),
+    path("api/v1/", include("modules.audit.urls")),
+    path("api/v1/", include("modules.notifications.urls")),
+    path("api/v1/", include("modules.clients.urls")),
+    path("api/v1/", include("modules.content.urls")),
+    path("api/v1/", include("modules.publishing.urls")),
+    path("api/v1/", include("modules.metrics.urls")),
+    path("api/v1/", include("modules.legal.urls")),
 ]
 
 if settings.HAS_SPECTACULAR:
