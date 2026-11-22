@@ -26,12 +26,14 @@ DROP FUNCTION IF EXISTS audit_auditlog_append_only();
 
 def create_trigger(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
-        schema_editor.execute(CREATE_TRIGGER)
+        # params=None: el SQL se envia tal cual. Con el valor por defecto Django lo compone en el
+        # cliente y psycopg 3 tomaria el '%' de RAISE EXCEPTION como un marcador de parametro.
+        schema_editor.execute(CREATE_TRIGGER, params=None)
 
 
 def drop_trigger(apps, schema_editor):
     if schema_editor.connection.vendor == "postgresql":
-        schema_editor.execute(DROP_TRIGGER)
+        schema_editor.execute(DROP_TRIGGER, params=None)
 
 
 class Migration(migrations.Migration):
