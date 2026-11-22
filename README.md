@@ -143,6 +143,7 @@ Todo bajo `/api/v1/`, JSON, autenticacion `Authorization: Bearer <access>` (exce
 | Revision | `POST piezas/{id}/enviar-revision`, `aprobar` y `solicitar-cambios` (admin), `GET piezas/{id}/revisiones` |
 | Programacion | `GET piezas/{id}/programacion` (vista previa), `POST piezas/{id}/programar {"confirmar": true}`, `cancelar-programacion` |
 | Publicacion | `GET publicaciones?estado=PENDIENTE`, `POST publicaciones/{id}/confirmar \| fallar \| reintentar`, `GET publicaciones/cumplimiento` (admin) |
+| Envios al cliente (HU-19, RF18) | `GET envios` (paginado, mas reciente primero; filtros `cliente`, `pieza`, `estado`, `desde`, `hasta` en dia de Bogota), `GET piezas/{id}/envios` (cronologico, sin paginar). Estado de entrega `PENDIENTE / ENVIADO / ENTREGADO / LEIDO / FALLIDO`; el numero del contacto sale enmascarado (`•••• 2233`) |
 | Alertas (admin) | `GET alertas`, `POST alertas/{id}/leer` |
 | Metricas | `GET metricas`, `PUT clientes/{id}/metricas` |
 | Legal | `GET legal/politica` (publico), `GET/POST legal/politicas` (admin) |

@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 
 from modules.clients.serializers import CuentaSocialSerializer
@@ -71,3 +73,53 @@ class ConfirmarSerializer(serializers.Serializer):
 
 class FallarSerializer(serializers.Serializer):
     motivo = serializers.CharField(allow_blank=True, default="")
+
+
+def mask_number(numero: str) -> str:
+    """'+573001112233' -> '•••• 2233'. Nunca devuelve el numero completo (RNF02)."""
+    digits = re.sub(r"\D", "", numero or "")
+    return f"•••• {digits[-4:]}" if len(digits) >= 4 else "••••"
+
+
+class EnvioSerializer(serializers.Serializer):
+    """Envio de contenido a un contacto del cliente (HU-19, RF18).
+
+    Requiere `context["piezas"]`: dict {str(pk): Pieza con cliente} para no hacer una consulta por envio.
+    El numero va enmascarado (RNF02)."""
+
+    id = serializers.UUIDField(read_only=True)
+    pieza = serializers.SerializerMethodField()
+    cliente = serializers.SerializerMethodField()
+    contacto = serializers.SerializerMethodField()
+    numero = serializers.SerializerMethodField()
+    archivo = serializers.SerializerMethodField()
+    estado = serializers.CharField(read_only=True)
+    error = serializers.CharField(read_only=True)
+    enviado_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    entregado_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    def _pieza(self, obj):
+        return self.context["piezas"].get(obj.entity_id)
+
+    def get_pieza(self, obj) -> dict | None:
+        pieza = self._pieza(obj)
+        # None si la pieza ya no existe (p. ej. purga por retencion del cliente)
+        return {"id": str(pieza.pk), "titulo": pieza.titulo, "tipo": pieza.tipo} if pieza else None
+
+    def get_cliente(self, obj) -> dict | None:
+        pieza = self._pieza(obj)
+        return {"id": str(pieza.cliente_id), "nombre": pieza.cliente.nombre} if pieza else None
+
+    def get_contacto(self, obj) -> dict:
+        return {"id": (obj.contexto or {}).get("contacto"), "nombre": obj.destino_nombre}
+
+    def get_numero(self, obj) -> str:
+        return mask_number(obj.destino)
+
+    def get_archivo(self, obj) -> dict:
+        return {
+            "id": (obj.contexto or {}).get("archivo"),
+            "nombre": obj.media_nombre,
+            "kind": obj.media_kind,
+        }

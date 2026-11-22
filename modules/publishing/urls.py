@@ -16,6 +16,8 @@ urlpatterns = [
     path(
         "piezas/<uuid:pk>/publicaciones", views.PiezaPublicacionesView.as_view(), name="pieza-publicaciones"
     ),
+    path("piezas/<uuid:pk>/envios", views.PiezaEnviosView.as_view(), name="pieza-envios"),
+    path("envios", views.EnvioListView.as_view(), name="envios"),
     path("publicaciones", views.TareaListView.as_view(), name="publicaciones"),
     path("publicaciones/cumplimiento", views.CumplimientoView.as_view(), name="publicaciones-cumplimiento"),
     path("publicaciones/<uuid:pk>", views.TareaDetailView.as_view(), name="publicacion"),

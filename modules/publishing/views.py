@@ -145,8 +145,27 @@ class PiezaPublicacionesView(APIView):
 
 
 # --- Registro de envios al cliente (HU-19, RF18) -----------------------------------------------------
+class EnvioListView(APIView):
+    """Envios de contenido a los contactos del cliente por WhatsApp y su estado de entrega."""
+
+    permission_classes = STAFF
+
+    def get(self, request):
+        queryset = envios.filter_envios(envios.client_envios(), request.query_params)
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(queryset.order_by("-created_at", "-id"), request, view=self)
+        return paginator.get_paginated_response(envios.serialize_envios(page))
 
 
+class PiezaEnviosView(APIView):
+    """Envios de una pieza al cliente, en orden cronologico y sin paginar."""
+
+    permission_classes = STAFF
+
+    def get(self, request, pk):
+        pieza = get_object_or_404(Pieza, pk=pk)
+        queryset = envios.client_envios().filter(entity_id=str(pieza.pk)).order_by("created_at", "id")
+        return Response(envios.serialize_envios(queryset))
 
 
 class ConfirmarView(APIView):

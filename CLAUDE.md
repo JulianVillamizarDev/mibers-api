@@ -68,7 +68,9 @@ publishing | metrics | legal  >  content  >  clients  >  notifications  >  accou
 - **Never publish unapproved content**: a due piece that is not `Programada` is blocked with a deduplicated alert (RF15).
   Publication accounts must belong to the piece's client and be `VINCULADA` (RNF09).
 - **Client delivery (RF18)** happens after the first network is confirmed, only to contacts with `autorizado` (Ley 1581), one WhatsApp
-  message per file; the piece becomes `Compartida` when all sends are accepted.
+  message per file; the piece becomes `Compartida` when all sends are accepted. The read-only query of those sends (`GET envios`,
+  `GET piezas/{id}/envios`) lives in `publishing/envios.py`: it filters `EnvioWhatsApp` by `proposito=CLIENTE`, resolves pieces in one
+  query (no N+1) and always masks the phone number (RNF02).
 - **Job queue** (`core/jobs.py`, `Job` model): Postgres-backed with `SKIP LOCKED`, retries with backoff, `@periodic` tasks. Modules
   register handlers/periodic tasks in `AppConfig.ready()`. API and worker share one container in prod (`docker/Procfile`, `honcho`).
 - **Security**: passwords Argon2; contact data/phone numbers use `core.fields.EncryptedTextField` (AES-256-GCM, `FIELD_ENCRYPTION_KEY`,
