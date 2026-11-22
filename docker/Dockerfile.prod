@@ -1,16 +1,30 @@
-FROM python:3.12-slim
+# --- Etapa 1: construir las ruedas ---------------------------------------------------------------
+# Alpine usa musl: si alguna dependencia no publica rueda para musl, pip la compila aqui con las
+# herramientas de build, que NO llegan a la imagen final.
+FROM python:3.12-alpine AS builder
+
+RUN apk add --no-cache build-base libffi-dev postgresql-dev jpeg-dev zlib-dev
+
+COPY requirements/ /requirements/
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r /requirements/prod.txt
+
+
+# --- Etapa 2: imagen de produccion -----------------------------------------------------------------
+FROM python:3.12-alpine
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 DJANGO_SETTINGS_MODULE=config.settings.prod
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg libpq5 \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --uid 1000 mibers
+# ffmpeg: ffprobe valida duracion y dimensiones de los videos (RF8).
+# libpq, libjpeg, zlib: librerias de ejecucion de psycopg y Pillow.
+# tzdata: Alpine no trae zonas horarias y Django necesita America/Bogota (RF14).
+RUN apk add --no-cache ffmpeg libpq libjpeg-turbo zlib tzdata \
+    && adduser -D -u 1000 mibers
+
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels /wheels/*.whl \
+    && rm -rf /wheels
 
 WORKDIR /app
-COPY requirements/ requirements/
-RUN pip install --no-cache-dir -r requirements/prod.txt
-
 COPY --chown=mibers:mibers . .
 RUN mkdir -p /app/media /app/staticfiles && chown -R mibers:mibers /app/media /app/staticfiles
 
@@ -20,4 +34,4 @@ RUN DJANGO_SECRET_KEY=build FIELD_ENCRYPTION_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY
 
 USER mibers
 EXPOSE 8000
-ENTRYPOINT ["/app/docker/entrypoint.prod.sh"]
+ENTRYPOINT ["sh", "/app/docker/entrypoint.prod.sh"]
