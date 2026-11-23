@@ -11,3 +11,4 @@ htmlcov/
 # Archivos subidos: solo se versiona el .gitkeep
 media/*
 !media/.gitkeep
+docs/
