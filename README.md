@@ -1,5 +1,7 @@
 # Mibers API
 
+[![CI](https://github.com/JulianVillamizarDev/mibers-api/actions/workflows/ci.yml/badge.svg)](https://github.com/JulianVillamizarDev/mibers-api/actions/workflows/ci.yml)
+
 API interna para que la agencia gestione el contenido de redes sociales de sus clientes: clientes y contratos, piezas con revision y aprobacion, programacion, publicacion en Instagram y Facebook, envio del contenido al WhatsApp del cliente, alertas al director, cronograma y metricas. Los requerimientos estan en [`context.txt`](context.txt).
 
 **Stack:** Django 5.2 + Django REST Framework, PostgreSQL, JWT, Docker (dev y prod), monolito modular, archivos en `/media`.
@@ -201,6 +203,29 @@ publica del servicio, para que Meta descargue los archivos) y, para publicar de 
 `META_APP_SECRET`: el blueprint deja `META_PUBLISHING=manual`, asi que hay que cambiarlo a `graph` en el panel. TLS lo termina
 Render (1.2+).
 
+## CI/CD (GitHub Actions)
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) corre en cada push a `main`, `julian` y `HU-**`, y en cada PR hacia
+`main`, con Python 3.12 y las integraciones simuladas (`WHATSAPP_BACKEND=fake`, `META_PUBLISHING=manual`):
+
+| Job | Que comprueba |
+|---|---|
+| `calidad` | `ruff check`, `ruff format --check`, `lint-imports` (contrato de capas) y `makemigrations --check --dry-run` |
+| `pruebas-sqlite` | `pytest` completo con cobertura minima del 90 % (`coverage.xml` queda como artefacto) |
+| `pruebas-postgres` | Las pruebas marcadas `postgres` (trigger de solo-anexar, `SKIP LOCKED`) y la suite completa sobre PostgreSQL 16 |
+| `imagen-docker` | Que `docker/Dockerfile.prod` (Alpine) compile, incluido `collectstatic`; no publica la imagen |
+| `desplegar` | Solo en push a `main` y con todo lo anterior en verde: pide el despliegue a Dokploy por su API y espera a que `/health` responda 200 |
+
+`desplegar` usa el environment `production` de GitHub:
+
+- Secretos: `DOKPLOY_URL` (URL del panel), `DOKPLOY_API_KEY` (Settings > Profile > API/CLI de Dokploy) y `DOKPLOY_APPLICATION_ID`.
+- Variable: `PROD_URL` (URL publica de la API, con `https://`).
+- En la app de Dokploy hay que **desactivar "Auto Deploy"**; si no, Dokploy sigue desplegando cada push a `main` sin esperar al CI.
+- Recomendado: proteger `main` exigiendo los 4 checks de CI, y opcionalmente aprobacion manual en el environment.
+
+La comprobacion de `/health` confirma que la API vuelve a responder tras el cambio de contenedor, no que ya corra el commit nuevo.
+Dependabot propone cada semana actualizaciones de las acciones y de `requirements/`.
+
 ## API (resumen)
 
 Todo bajo `/api/v1/`, JSON, autenticacion `Authorization: Bearer <access>` (excepto login, refresh, politica, webhook y
@@ -236,9 +261,9 @@ politica de tratamiento de datos (RNF13): el texto lo publica el administrador p
 
 ## Verificacion pendiente
 
-Lo construido se probo con 340+ pruebas automaticas sobre SQLite (97 % de cobertura). **No se ha ejecutado aun**: el trigger
-de solo-anexar del historial en PostgreSQL (hay prueba, marcada `postgres`), la construccion de las imagenes Docker, el despliegue
-en Render ni la integracion real con WhatsApp Cloud API (se probo contra un transporte HTTP simulado).
+Lo construido se probo con 488 pruebas automaticas (95 % de cobertura). El CI las corre sobre SQLite y sobre PostgreSQL 16 (incluido
+el trigger de solo-anexar del historial) y comprueba que la imagen Docker de produccion compile (ver "CI/CD"). **No se ha ejecutado
+aun** el despliegue en Render ni la integracion real con WhatsApp Cloud API (se probo contra un transporte HTTP simulado).
 
 La publicacion automatica, la verificacion de cuentas y la sincronizacion de metricas con Meta se prueban con un cliente de
 Graph API simulado (`FakeGraphClient` y transporte HTTP simulado). Lo que Meta devuelve de verdad (permisos del token, limites de
