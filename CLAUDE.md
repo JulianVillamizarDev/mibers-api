@@ -33,6 +33,10 @@ Environment quirks:
   if importable (`settings.HAS_SPECTACULAR`); it is in `requirements/base.txt` for Docker (Python 3.12). Do not make it mandatory.
 - Tests run on **SQLite**. Tests marked `@pytest.mark.postgres` (append-only audit trigger) are skipped unless `DATABASE_URL`
   is PostgreSQL; the real PostgreSQL path (trigger, `SKIP LOCKED`) is unverified locally. Docker daemon was not running during development.
+- CI (`.github/workflows/ci.yml`, GitHub Actions, Python 3.12) runs ruff, `lint-imports`, `makemigrations --check`, the suite on SQLite
+  (coverage >= 90 %) and on PostgreSQL 16 (so the `postgres` tests do run there), and builds `docker/Dockerfile.prod`. A push to `main`
+  with everything green triggers the Dokploy deploy via its API (`desplegar` job; Dokploy "Auto Deploy" must stay off). Keep CI green
+  before merging into `main`.
 - `ffprobe` is not installed locally; video tests patch `modules.content.media.probe_video` (see `content/tests/helpers.py`).
 - In a Bash heredoc, avoid mixing apostrophes with large file bodies (the shell rejected them); use the Write tool for source files.
 - SimpleJWT reads `AccessToken.lifetime` at import time; to change it in a test, `monkeypatch.setattr(AccessToken, "lifetime", ...)`.
