@@ -111,3 +111,58 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # CD: solo en push a main y con todo el CI en verde. Dokploy construye y despliega la imagen;
+  # para que no despliegue por su cuenta hay que desactivar "Auto Deploy" en la app de Dokploy.
+  desplegar:
+    name: Desplegar en Dokploy
+    needs: [calidad, pruebas-sqlite, pruebas-postgres, imagen-docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: despliegue-produccion
+      cancel-in-progress: false
+    steps:
+      - name: Pedir el despliegue a Dokploy
+        env:
+          DOKPLOY_URL: ${{ secrets.DOKPLOY_URL }}
+          DOKPLOY_API_KEY: ${{ secrets.DOKPLOY_API_KEY }}
+          DOKPLOY_APPLICATION_ID: ${{ secrets.DOKPLOY_APPLICATION_ID }}
+        run: |
+          set -euo pipefail
+          for name in DOKPLOY_URL DOKPLOY_API_KEY DOKPLOY_APPLICATION_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Falta el secreto $name en el environment production."
+              exit 1
+            fi
+          done
+          curl --fail-with-body -sS -X POST "${DOKPLOY_URL%/}/api/application.deploy" \
+            -H "x-api-key: ${DOKPLOY_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"applicationId\":\"${DOKPLOY_APPLICATION_ID}\"}"
+          echo "Despliegue solicitado para el commit ${GITHUB_SHA}."
+
+      # El despliegue de Dokploy es asincrono: esto confirma que la API responde de nuevo
+      # despues del cambio de contenedor, no que ya corra este commit.
+      - name: Comprobar /health
+        env:
+          PROD_URL: ${{ vars.PROD_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PROD_URL}" ]; then
+            echo "::warning::Sin variable PROD_URL; se omite la comprobacion de /health."
+            exit 0
+          fi
+          sleep 90
+          for intento in $(seq 1 30); do
+            codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "${PROD_URL%/}/health" || true)
+            if [ "$codigo" = "200" ]; then
+              echo "/health respondio 200 (intento $intento)."
+              exit 0
+            fi
+            echo "Intento $intento: /health respondio ${codigo:-sin respuesta}."
+            sleep 15
+          done
+          echo "::error::/health no respondio 200 a tiempo."
+          exit 1
