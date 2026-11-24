@@ -12,3 +12,4 @@ htmlcov/
 media/*
 !media/.gitkeep
 docs/
+coverage.xml

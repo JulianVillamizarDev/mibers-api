@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main, julian, "HU-**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+# Valores de prueba: el runner no tiene .env y las integraciones quedan simuladas.
+env:
+  PYTHON_VERSION: "3.12"
+  DJANGO_SECRET_KEY: ci-secret-key-con-al-menos-32-bytes-de-largo
+  FIELD_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+  WHATSAPP_BACKEND: fake
+  META_PUBLISHING: manual
+
+jobs:
+  calidad:
+    name: Calidad (ruff, capas, migraciones)
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///ci.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - name: ruff check
+        run: ruff check .
+      - name: ruff format
+        run: ruff format --check .
+      - name: Contrato de capas (import-linter)
+        run: lint-imports
+      - name: Migraciones al dia
+        run: python manage.py makemigrations --check --dry-run
+
+  pruebas-sqlite:
+    name: Pruebas (SQLite) y cobertura
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///ci.db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - name: pytest con cobertura minima del 90 %
+        run: pytest --cov=modules --cov-report=xml --cov-fail-under=90
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+
+  pruebas-postgres:
+    name: Pruebas (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: mibers
+          POSTGRES_PASSWORD: mibers
+          POSTGRES_DB: mibers
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U mibers"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://mibers:mibers@localhost:5432/mibers
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+      - run: pip install -r requirements/dev.txt
+      - name: Pruebas exclusivas de Postgres (trigger de auditoria, SKIP LOCKED)
+        run: pytest -m postgres -ra
+      - name: Suite completa sobre Postgres
+        run: pytest -ra
+
+  imagen-docker:
+    name: Imagen de produccion (Docker)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Construir sin publicar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.prod
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
