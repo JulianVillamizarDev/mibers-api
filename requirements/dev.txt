@@ -5,4 +5,4 @@ pytest-cov>=6
 factory-boy>=3.3
 time-machine>=2.16
 ruff>=0.9
-import-linter>=2.1
+import-linter>=2.17
