@@ -30,7 +30,7 @@ jobs:
       DATABASE_URL: sqlite:///ci.db
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -52,7 +52,7 @@ jobs:
       DATABASE_URL: sqlite:///ci.db
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -86,7 +86,7 @@ jobs:
       DATABASE_URL: postgres://mibers:mibers@localhost:5432/mibers
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
